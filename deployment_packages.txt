@@ -1,0 +1,6 @@
+# System packages for Streamlit Community Cloud
+# Save this as packages.txt when uploading to Streamlit
+
+libgl1-mesa-glx
+libglib2.0-0
+ffmpeg
