@@ -21,7 +21,7 @@ from data.sample_images import SampleImages
 # Configure page
 st.set_page_config(
     page_title="AquaDoc - Water Body Waste Detection System",
-    page_icon="",
+    page_icon="💧",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -150,7 +150,7 @@ st.markdown("""
 class WaterBodyWasteDetectionApp:
     def __init__(self):
         self.image_processor = ImageProcessor()
-        self.waste_detector = WasteDetector()
+        self.waste_detector = None
         self.map_utils = MapUtils()
         self.sample_images = SampleImages()
         self.location_analyzer = LocationAnalyzer()
@@ -164,6 +164,12 @@ class WaterBodyWasteDetectionApp:
             st.session_state.processed_images = {}
         if 'current_page' not in st.session_state:
             st.session_state.current_page = "Dashboard"
+
+    def get_waste_detector(self):
+        """Create the detector only when a workflow needs it."""
+        if self.waste_detector is None:
+            self.waste_detector = WasteDetector()
+        return self.waste_detector
 
     def run(self):
         # Main header
@@ -561,7 +567,7 @@ Empowering clean water for a better future.
             status_text.text("🎨 Generating detection visualization...")
             progress_bar.progress(0.8)
             
-            highlighted_image = self.waste_detector.create_highlighted_image(
+            highlighted_image = self.get_waste_detector().create_highlighted_image(
                 original_image, 
                 detection_results
             )
