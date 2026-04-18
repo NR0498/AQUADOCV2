@@ -135,6 +135,10 @@ class WasteDetector:
                         {
                             "contour": contour,
                             "bbox": (x, y, w, h),
+                            "x": x,
+                            "y": y,
+                            "w": w,
+                            "h": h,
                             "area": area,
                             "shape_metrics": shape_metrics,
                             "center": (x + w // 2, y + h // 2),

@@ -251,6 +251,10 @@ class LocationAnalyzer:
             
             detection = {
                 'bbox': (x, y, w, h),
+                'x': x,
+                'y': y,
+                'w': w,
+                'h': h,
                 'area': size,
                 'center': (x + w//2, y + h//2),
                 'waste_type': self._format_waste_type(waste_type),

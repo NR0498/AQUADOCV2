@@ -15,6 +15,7 @@ from utils.image_processor import ImageProcessor
 from utils.waste_detector import WasteDetector
 from utils.map_utils import MapUtils
 from utils.location_analyzer import LocationAnalyzer
+from utils.gee_client import GoogleEarthEngineClient
 from data.water_bodies import WATER_BODIES
 from data.sample_images import SampleImages
 
@@ -154,6 +155,7 @@ class WaterBodyWasteDetectionApp:
         self.map_utils = MapUtils()
         self.sample_images = SampleImages()
         self.location_analyzer = LocationAnalyzer()
+        self.gee_client = GoogleEarthEngineClient()
         
         # Initialize session state
         if 'detection_results' not in st.session_state:
@@ -504,7 +506,7 @@ Empowering clean water for a better future.
         
         # Analysis parameters
         with st.expander("⚙️ Analysis Configuration", expanded=True):
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 detection_sensitivity = st.slider("Detection Sensitivity", 0.1, 1.0, 0.7, help="Higher values detect more potential waste areas")
@@ -512,6 +514,19 @@ Empowering clean water for a better future.
                 image_resolution = st.selectbox("Image Resolution", ["High (10m)", "Medium (30m)", "Low (100m)"], help="Higher resolution provides more detail but takes longer")
             with col3:
                 analysis_type = st.selectbox("Analysis Type", ["Waste Detection", "Water Quality", "Both"], help="Choose the type of analysis to perform")
+            with col4:
+                imagery_source = st.selectbox(
+                    "Imagery Source",
+                    ["Auto", "Google Earth Engine", "Demo Generator"],
+                    help="Use live Earth Engine imagery when configured, otherwise keep the built-in demo source.",
+                )
+
+        gee_status = self.gee_client.get_status()
+        if imagery_source in ["Auto", "Google Earth Engine"]:
+            if gee_status["ready"]:
+                st.success("Google Earth Engine is configured for live imagery.")
+            else:
+                st.info(f"GEE status: {gee_status['message']}")
         
         # Control buttons
         col1, col2, col3 = st.columns(3)
@@ -523,7 +538,13 @@ Empowering clean water for a better future.
                 
         with col2:
             if st.button("Start Analysis", type="primary", use_container_width=True):
-                self.perform_analysis(location, detection_sensitivity, image_resolution, analysis_type)
+                self.perform_analysis(
+                    location,
+                    detection_sensitivity,
+                    image_resolution,
+                    analysis_type,
+                    imagery_source,
+                )
                 
         with col3:
             if st.button(" View Previous Results", disabled=not st.session_state.detection_results, use_container_width=True):
@@ -534,7 +555,7 @@ Empowering clean water for a better future.
         if st.session_state.detection_results:
             self.display_analysis_results()
 
-    def perform_analysis(self, location, sensitivity, resolution, analysis_type):
+    def perform_analysis(self, location, sensitivity, resolution, analysis_type, imagery_source):
         """Perform the actual analysis"""
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -543,9 +564,32 @@ Empowering clean water for a better future.
             # Step 1: Retrieve satellite images
             status_text.text("Retrieving satellite images...")
             progress_bar.progress(0.2)
-            
-            # Get sample images based on location
-            original_image = self.sample_images.get_sample_image(location['name'])
+
+            imagery_metadata = {}
+            actual_source = imagery_source
+
+            if imagery_source in ["Auto", "Google Earth Engine"]:
+                try:
+                    original_image, imagery_metadata = self.gee_client.fetch_location_image(
+                        location,
+                        resolution_label=resolution,
+                    )
+                    actual_source = "Google Earth Engine"
+                except Exception as gee_error:
+                    if imagery_source == "Google Earth Engine":
+                        raise RuntimeError(f"Google Earth Engine fetch failed: {gee_error}") from gee_error
+
+                    actual_source = "Demo Generator"
+                    imagery_metadata = {
+                        "source": "Demo Generator",
+                        "fallback_reason": str(gee_error),
+                    }
+                    st.info(f"Falling back to demo imagery because GEE was unavailable: {gee_error}")
+                    original_image = self.sample_images.get_sample_image(location['name'])
+            else:
+                actual_source = "Demo Generator"
+                imagery_metadata = {"source": "Demo Generator"}
+                original_image = self.sample_images.get_sample_image(location['name'])
             
             # Step 2: Preprocess images
             status_text.text("Preprocessing images...")
@@ -553,15 +597,26 @@ Empowering clean water for a better future.
             
             preprocessed_image = self.image_processor.preprocess_image(original_image)
             
-            # Step 3: Perform location-specific analysis
-            status_text.text("Analyzing water body with location-specific ML models...")
+            # Step 3: Perform analysis
+            status_text.text("Analyzing water body...")
             progress_bar.progress(0.6)
-            
-            # Use location analyzer for realistic, location-specific results
-            detection_results = self.location_analyzer.generate_realistic_analysis(
-                location, 
+
+            location_context = self.location_analyzer.generate_realistic_analysis(
+                location,
                 sensitivity=sensitivity
             )
+
+            if actual_source == "Google Earth Engine":
+                detection_results = self.get_waste_detector().detect_waste(
+                    preprocessed_image,
+                    sensitivity=sensitivity,
+                )
+                detection_results["location_analysis"] = location_context.get("location_analysis", {})
+                detection_results["imagery_metadata"] = imagery_metadata
+                detection_results["detection_metadata"]["image_source"] = actual_source
+            else:
+                detection_results = location_context
+                detection_results["imagery_metadata"] = imagery_metadata
             
             # Step 4: Generate highlighted image
             status_text.text("🎨 Generating detection visualization...")
@@ -583,10 +638,12 @@ Empowering clean water for a better future.
                 'preprocessed_image': preprocessed_image,
                 'highlighted_image': highlighted_image,
                 'detection_data': detection_results,
+                'imagery_metadata': imagery_metadata,
                 'parameters': {
                     'sensitivity': sensitivity,
                     'resolution': resolution,
-                    'analysis_type': analysis_type
+                    'analysis_type': analysis_type,
+                    'imagery_source': actual_source,
                 }
             }
             
@@ -673,13 +730,26 @@ Empowering clean water for a better future.
             **Coordinates:** {results['location']['lat']:.4f}, {results['location']['lon']:.4f}  
             **Analysis Type:** {results['parameters']['analysis_type']}  
             **Detection Sensitivity:** {results['parameters']['sensitivity']}  
-            **Image Resolution:** {results['parameters']['resolution']}
+            **Image Resolution:** {results['parameters']['resolution']}  
+            **Imagery Source:** {results['parameters'].get('imagery_source', 'Demo Generator')}
             """)
         
         with col2:
             detection_data = results['detection_data']
             st.metric("Overall Waste Score", f"{detection_data['waste_score']:.1f}/10", 
                      delta=f"{detection_data['waste_score'] - 5:.1f} vs average")
+
+        imagery_metadata = results.get('imagery_metadata', {})
+        if imagery_metadata:
+            st.markdown("**Imagery Metadata**")
+            st.markdown(
+                f"""
+                **Source:** {imagery_metadata.get('source', 'Unknown')}  
+                **Capture Time:** {imagery_metadata.get('capture_time', 'N/A')}  
+                **Cloud Cover:** {imagery_metadata.get('cloud_cover', 'N/A')}  
+                **Collection:** {imagery_metadata.get('collection_id', 'N/A')}
+                """
+            )
         
         # Image analysis results
         st.subheader(" Detection Results")
