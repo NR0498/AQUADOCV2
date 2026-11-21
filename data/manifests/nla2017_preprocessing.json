@@ -1,0 +1,102 @@
+{
+  "counts": {
+    "candidate_rows": 1145,
+    "chemistry_rows": 22873,
+    "chlorophyll_rows": 1210,
+    "non_chla_rows_filtered": 21663,
+    "review_rows": 65,
+    "unique_lakes": 1113
+  },
+  "encoding": {
+    "chemistry": "utf-8-sig",
+    "profiles": "cp1252",
+    "sites": "utf-8-sig"
+  },
+  "implementation_sha256": "f15ca90f16245cce2382e78b0671dddfbc0f8af21bf7b829820fbd834a88d964",
+  "input_inventory_sha256": "c42215242ecfc2612f142bafad9353e1013e57ec7ff53103c1745c0614891356",
+  "inputs": [
+    {
+      "bytes": 3159484,
+      "filename": "nla_2017_water_chemistry_chla-data.csv",
+      "sha256": "b9094be9aa16d1574ffa36aee6433c3a4bcce62b196822ff63b4ff9f4fed3983"
+    },
+    {
+      "bytes": 1415,
+      "filename": "nla_2017_water_chemistry_chla-metadata.txt",
+      "sha256": "c8194a9d17e7bf370c11819bf8fa13c3f78182e07f3657ceac488868ea26e443"
+    },
+    {
+      "bytes": 4361425,
+      "filename": "nla_2017_site_information-data.csv",
+      "sha256": "9d52dc17fff66f04318fd2e66c14bdc92a467751c1af5b2027be1d74a595e782"
+    },
+    {
+      "bytes": 16424,
+      "filename": "nla_2017_site_information-metadata.txt",
+      "sha256": "c9ba0b05345480f7b5d56aa5b65ad87d661748bd70df4f4cb71b156f4ef4eb64"
+    },
+    {
+      "bytes": 1164905,
+      "filename": "nla_2017_profile-data.csv",
+      "sha256": "e6f8c4df3e29ae4bf141eb4cef6217dc2019d1da2bf215bc755288a2d44467bc"
+    },
+    {
+      "bytes": 2459,
+      "filename": "nla_2017_profile-metadata.txt",
+      "sha256": "db12221b6859f8bfab0916fa0c1811d5030d826005c17e51a24aec700b6a8346"
+    }
+  ],
+  "limitations": [
+    "Candidates remain provisional and unpaired, not training-ready or bloom classifications.",
+    "Collection dates lack exact time and timezone; do not import as fabricated UTC timestamps.",
+    "Nonblank NARS flags require review; the meaning of S has not been resolved.",
+    "GPS datum follows survey protocol, not per-record confirmation; no precision claim.",
+    "Lake polygon containment and satellite footprint/cloud/shoreline checks remain pending.",
+    "No target imputation, clipping, log transform, statistical outlier removal, or split performed.",
+    "Review reason counts overlap; all CHLA source records are retained."
+  ],
+  "outputs": [
+    {
+      "filename": "chlorophyll_observations.csv",
+      "rows": 1210,
+      "sha256": "d2a607c7b53d4d055ff91e3bfbf9770d7208c92ccd39a187a353ac68871b476e"
+    },
+    {
+      "filename": "chlorophyll_candidates.csv",
+      "rows": 1145,
+      "sha256": "db8f2518a7acba79e488463f6e76c4fb2ae9bbb70764fa6d7f8c6b1ddef0cd26"
+    },
+    {
+      "filename": "chlorophyll_review.csv",
+      "rows": 65,
+      "sha256": "12be10f97b5a472bddb64068bb79c64b7302fff4f89677cf96e8baed2ffeb52f"
+    }
+  ],
+  "pipeline_version": "nla2017-chla-v1",
+  "review_reason_counts": {
+    "below_mdl": 14,
+    "invalid_index_coordinates": 10,
+    "missing_index_coordinates": 5,
+    "nars_flag_requires_review": 38
+  },
+  "runtime": {
+    "gdal": "3.10.3",
+    "proj": "9.7.1",
+    "python": "3.12.15",
+    "rasterio": "1.4.4"
+  },
+  "transformation_counts": {
+    "NAD83_to_WGS84_via_GDAL": 1195,
+    "explicit_west_prefix_to_negative_longitude": 2,
+    "units_normalized_to_ug_L": 1210
+  },
+  "warning_counts": {
+    "analytical_method_unknown": 1210,
+    "collection_time_unknown": 1210,
+    "gps_datum_assumed_from_survey_protocol": 1195,
+    "missing_analyzed_date": 32,
+    "missing_mdl": 63,
+    "missing_rl": 1156,
+    "sample_depth_unknown": 1210
+  }
+}

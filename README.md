@@ -1,244 +1,99 @@
-# AquaDoc - Water Body Waste Detection System
+# AquaDoc
 
-![AquaDoc Logo](https://img.shields.io/badge/AquaDoc-Water%20Monitoring-blue?style=for-the-badge&logo=droplet)
+> Estimate optically detectable water-quality parameters for any water body from Sentinel-2 multispectral imagery, and show how each band contributes to the estimate.
 
-##  Overview
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
+![Sentinel--2](https://img.shields.io/badge/Imagery-Sentinel--2%20L2A-1B5E20)
+![Status](https://img.shields.io/badge/Status-In%20development-F59E0B)
 
-AquaDoc is an advanced AI/ML-powered water body waste detection system that uses satellite imagery analysis to monitor and detect waste and various pollutants in global water bodies. Built  computer vision techniques and interactive geospatial visualization. It provides comprehensive environmental monitoring capabilities.
-## Recent Changes
+## What it does
 
-### July 09, 2025 - Professional UI Overhaul & Enhanced Navigation
-- **Complete Visual Redesign**: Implemented retro-professional dark theme with blue/cyan gradients
-- **Brand Identity**: Renamed to "AquaGuard" with space-inspired styling and professional typography
-- **Navigation System**: Added interconnected page navigation with session state management
-- **Page Improvements**: Enhanced all pages with professional cards, proper button navigation, and status indicators
-- **CSS Framework**: Added comprehensive custom styling with Google Fonts (JetBrains Mono, Inter)
-- **Button Integration**: Fixed navigation buttons and added "Proceed to Analysis" flow from location selection
-- **Documentation**: Created comprehensive README.md with project overview, features, and technical details
-- **Status Tracking**: Added real-time system status indicators in sidebar
-- **Professional Content**: Updated About page with mission, technology stack, and roadmap information
+1. Pick a water body or coordinate.
+2. Find the most recent clear Sentinel-2 Level-2A scene (Microsoft Planetary Computer STAC, no API key needed).
+3. Read only the bands and area needed (Cloud Optimized GeoTIFF windowed reads).
+4. Mask cloud, shadow, land and shoreline pixels.
+5. Run spectral indices and a model trained on public in-situ reflectance data, pixel by pixel.
+6. Report estimates with uncertainty, and explain which bands drove each one.
 
-### July 09, 2025 - Removed Before/After Preprocessing Comparison
-- Removed "Original vs Processed" tab from the Results page that showed side-by-side comparison of original and preprocessed images
-- Simplified the analysis preview to show only the final detection results image
-- Removed create_before_after_comparison() method from sample_images.py module
-- Updated image display logic to focus solely on waste detection visualization
+Satellites see only **optically active** constituents. AquaDoc estimates chlorophyll-a, suspended solids, turbidity, CDOM and water clarity, and flags likely floating debris and surface scum. It cannot detect heavy metals, bacteria, dissolved nutrients or most chemicals, which need laboratory testing.
 
-##  Features
+## Status
 
-###  Core Capabilities
-- **Smart Location Selection** - Access to 25+ renowned water bodies worldwide
-- **Satellite Intelligence** - Real-time multispectral image processing  
-- **AI Waste Detection** - Machine learning-powered pollution identification
-- **Advanced Analytics** - Comprehensive reporting and visualization
-- **Training Data Generation** - Automated YOLO model training datasets
+| Component | State |
+| --- | --- |
+| Sentinel-2 STAC search and COG band reads (`aquadoc_core/ingestion.py`) | Working |
+| Aligned 20 m grid, SCL cloud masking, radiometric scaling (`aquadoc_core/imagery_quality.py`) | Implemented, not yet wired into the API |
+| Spectral indices and heuristic screening (`spectral_indices.py`, `risk.py`, `pipeline.py`) | Working |
+| FastAPI service (`aquadoc_core/api.py`) | Working, local SQLite persistence |
+| Model trained on public spectral data | Planned |
+| Next.js dashboard and Vercel deployment | Planned |
 
-###  Technical Features
-- **Multi-spectral Analysis** - Enhanced satellite image processing
-- **Computer Vision Pipeline** - OpenCV-based image enhancement
-- **Interactive Mapping** - Folium-powered geospatial visualization
-- **Real-time Detection** - Live waste identification and classification
-- **Statistical Analysis** - Comprehensive pollution metrics
-## Key Components
+## Repository structure
 
-### 1. Image Processing Pipeline (`utils/image_processor.py`)
-- **Purpose**: Preprocesses satellite images for waste detection
-- **Features**: 
-  - Gaussian blur and bilateral filtering
-  - CLAHE (Contrast Limited Adaptive Histogram Equalization)
-  - Color space conversions (RGB/BGR)
-- **Input**: Raw satellite images
-- **Output**: Preprocessed images optimized for detection
-
-### 2. Waste Detection Engine (`utils/waste_detector.py`)
-- **Purpose**: Identifies and classifies waste in water bodies
-- **Approach**: Contour-based detection with shape analysis
-- **Parameters**: Configurable sensitivity and detection thresholds
-- **Features**:
-  - Multi-level confidence scoring
-  - Waste region classification
-  - Statistical analysis of pollution levels
-
-### 3. Geospatial Mapping (`utils/map_utils.py`)
-- **Purpose**: Creates interactive maps for location visualization
-- **Features**:
-  - Satellite and standard map layers
-  - Location markers with detailed popups
-  - Integration with water body database
-
-### 4. Sample Data Generation (`data/sample_images.py`)
-- **Purpose**: Generates synthetic satellite images for demonstration
-- **Features**:
-  - Realistic water body simulation
-  - Variable pollution levels
-  - Location-specific characteristics
-
-### 5. Water Body Database (`data/water_bodies.py`)
-- **Purpose**: Stores information about global water bodies
-- **Data**: Coordinates, classifications, and descriptive information
-- **Scope**: Major lakes, seas, and water bodies worldwide
-
-## Data Flow
-
-1. **Location Selection**: User selects a water body from the database
-2. **Image Acquisition**: System generates or loads satellite imagery
-3. **Preprocessing**: Images are enhanced and prepared for analysis
-4. **Waste Detection**: AI algorithms identify potential waste areas
-5. **Result Analysis**: Detection results are classified and scored
-6. **Visualization**: Results displayed on interactive maps and charts
-7. **Reporting**: Statistical summaries and recommendations generated
-
-
-##  User Guide
-
-### 1. Dashboard
-- System overview and analytics
-- Quick access to all features
-- Current session status
-- Performance metrics
-
-### 2. Location Selection
-- **Renowned Water Bodies**: Choose from curated database
-- **Custom Coordinates**: Input specific latitude/longitude
-- Interactive map visualization
-- Location validation and preview
-
-### 3. Analysis
-- Configure detection parameters
-- Adjust sensitivity settings
-- Select image resolution
-- Run AI-powered analysis
-
-### 4. Results
-- Detailed detection visualization
-- Statistical analysis
-- Waste type classification
-- Export capabilities
-
-## System Architecture
-
-### Frontend
-- **Framework**: Streamlit web interface
-- **Styling**: Custom CSS with retro-professional design
-- **Maps**: Folium for interactive geospatial visualization
-- **Charts**: Plotly for analytics and data visualization
-
-### Backend
-- **Core Engine**: Python-based processing pipeline
-- **Computer Vision**: OpenCV for image preprocessing
-- **AI Detection**: Custom waste detection algorithms
-- **Data Management**: Session-based state management
-
-
-##  Database
-
-### Water Bodies Included
-- **Great Lakes**: Lake Superior, Lake Victoria, Lake Baikal
-- **Salt Lakes**: Dead Sea, Great Salt Lake, Salton Sea
-- **Alpine Lakes**: Lake Geneva, Lake Como, Lake Tahoe
-- **Volcanic Lakes**: Crater Lake, Yellowstone Lake
-- **And many more...**
-
-##  AI/ML Components
-
-### Image Processing Pipeline
-1. **Preprocessing**: Gaussian blur, bilateral filtering
-2. **Enhancement**: CLAHE (Contrast Limited Adaptive Histogram Equalization)
-3. **Multi-spectral**: Simulated NIR band analysis
-4. **Water Extraction**: Color and texture-based segmentation
-
-### Waste Detection Algorithm
-1. **Contour Analysis**: Shape-based region extraction
-2. **Feature Classification**: Circularity, solidity, aspect ratio analysis
-3. **ML Simulation**: Confidence scoring and waste type classification
-4. **Statistical Analysis**: Coverage percentage and pollution metrics
-
-##  Detection Types
-
-### Waste Categories
-- **Plastic Debris**: Floating plastic waste and microplastics
-- **Organic Matter**: Natural and biological pollutants
-- **Chemical Pollutants**: Industrial discharge and contaminants
-- **Unknown**: Unclassified waste materials
-
-### Confidence Levels
-- 🔴 **High Confidence** (>80%): Red highlighting
-- 🟡 **Medium Confidence** (60-80%): Yellow highlighting  
-- 🟢 **Low Confidence** (<60%): Green highlighting
-
-
-### User Experience
-- **Intuitive Navigation**: Clear page structure with status indicators
-- **Progressive Flow**: Guided workflow from location to results
-- **Visual Feedback**: Real-time progress and status updates
-- **Responsive Design**: Optimized for various screen sizes
-
-##  Performance Metrics
-
-### System Statistics
-- **Water Bodies Monitored**: 25+ global locations
-- **Images Processed**: 1,247+ satellite analyses
-- **Detection Accuracy**: 94.2% AI model performance
-- **Training Data**: 8,934+ annotated samples
-
-## 🔧 Configuration
-
-### Streamlit Setup
-```toml
-[server]
-headless = true
-address = "0.0.0.0"
-port = 5000
-
-[theme]
-base = "light"
+```text
+AQUADOCV2/
+├── aquadoc_core/        # Deployed backend: ingestion, imagery QA, indices, API, CLI
+├── tests/               # Offline tests for aquadoc_core
+├── research/            # Shelved lab-measurement matching workflow (not deployed)
+│   ├── lab_matching/
+│   └── tests/
+├── data/                # Local data, manifests and SQLite (databases are git-ignored)
+├── docs/                # Project audit and dataset notes
+├── learning.md          # Implementation learning journal
+└── study.md             # Technology log and learning resources
 ```
 
-### Detection Parameters
-- **Sensitivity Range**: 0.1 - 1.0 (adjustable)
-- **Image Resolution**: High (10m), Medium (30m), Low (100m)
-- **Analysis Types**: Waste Detection, Water Quality, Combined
+## Quick start
 
-### Production Ready
-- **Scalability**: Designed for single-user sessions
-- **Performance**: In-memory processing for demonstration
-- **Extensibility**: Expandable to real satellite API integration
+Requires Python 3.12.
 
-## Future Enhancements
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"            # API runtime + test client
+# pip install -e ".[training]"     # offline model training
+# pip install -e ".[research]"     # shelved lab-matching workflow
+```
 
-### Planned Features
-- **Real Satellite Integration**: Live satellite imagery APIs
-- **Advanced ML Models**: Pre-trained YOLO and CNN models
-- **Database Integration**: Persistent storage for detection results
-- **Multi-user Support**: Authentication and user management
-- **Mobile App**: React Native companion application
+Run the tests:
 
-### Technical Roadmap
-- **Real-time Processing**: Streaming satellite data
-- **Cloud Deployment**: AWS/Azure integration
-- **API Development**: RESTful service endpoints
-- **Machine Learning**: Enhanced detection algorithms
+```powershell
+python -m unittest discover -s tests
+python -m unittest discover -s research/tests -t .
+```
+
+Analyze a coordinate from the command line:
+
+```powershell
+python -m aquadoc_core.cli analyze --lat 41.68 --lon -83.30 --start 2026-08-01 --end 2026-09-01
+```
+
+Start the API and open the interactive docs at http://127.0.0.1:8000/docs:
+
+```powershell
+python -m uvicorn aquadoc_core.api:app --reload
+```
+
+## API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Health check |
+| `POST` | `/analyses` | Fetch, analyze and persist a coordinate request |
+| `GET` | `/analyses` | List saved runs |
+| `GET` | `/analyses/{run_id}` | Retrieve one run |
+
+## Dependencies
+
+`requirements.txt` and `[project.dependencies]` in `pyproject.toml` contain only the API runtime, which is what gets deployed. Training and research dependencies are optional extras, so the deployed bundle stays small.
+
+## Limitations
+
+- Research and educational tool, not a regulatory or drinking-water safety system.
+- Sentinel-2 L2A atmospheric correction is designed for land and is imperfect over water. Estimates carry real uncertainty.
+- The current risk score is a transparent heuristic. Its labels will be replaced with screening levels once the trained model is in place.
 
 ## License
 
-This project is developed for educational and research purposes. Please refer to the license file for usage terms.
-
-## Contributing
-
-We welcome contributions to improve AquaGuard! Please read our contribution guidelines and submit pull requests for review.
-
-## Support
-
-For technical support or questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation wiki
-
----
-
-**AquaGuard** - *Raising awareness for our water bodies through intelligent monitoring*
-
-![Built with Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-red?style=flat-square&logo=streamlit)
-![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python)
-![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-green?style=flat-square&logo=opencv)
-![AI/ML](https://img.shields.io/badge/AI%2FML-Powered-purple?style=flat-square&logo=tensorflow)
+Developed for educational and research use. Check data-source licences and attribution requirements before redistribution.

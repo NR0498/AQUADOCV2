@@ -1,0 +1,3 @@
+measurement_type,sample_id,latitude,longitude,collected_at,parameter,numeric_value,categorical_value,unit,depth_m,spatial_uncertainty_m,method,instrument,laboratory_name,analyzed_at,detection_limit,source,source_reference,quality,notes
+field,example-field-001,12.9716,77.5946,2026-06-15T05:00:00Z,turbidity,18.2,,NTU,0.2,5,ISO 7027 nephelometric field meter,Example meter,,,,Example monitoring programme,field-sheet-001,verified,Example row - replace with real data
+laboratory,example-lab-001,12.9716,77.5946,2026-06-15T05:00:00Z,chlorophyll_a,42,,ug/L,0.2,5,Fluorometric analysis,,Example accredited laboratory,2026-06-15T12:00:00Z,0.1,Example monitoring programme,lab-report-001,verified,Example row - replace with real data

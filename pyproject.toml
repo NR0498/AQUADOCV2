@@ -1,20 +1,42 @@
 [project]
-name = "repl-nix-workspace"
-version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.11"
+name = "aquadoc"
+version = "0.2.0"
+description = "Estimate optically detectable water-quality parameters from Sentinel-2 multispectral imagery."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+# Runtime dependencies for the API (what Vercel installs). Keep this list lean:
+# the deployed Python bundle must stay under Vercel's function size limit.
 dependencies = [
-    "matplotlib>=3.5.0",
-    "opencv-python-headless>=4.8.0",
-    "pandas>=1.5.0",
-    "pillow>=9.0.0",
-    "streamlit-folium>=0.20.0",
-    "streamlit>=1.28.0",
-    "folium>=0.14.0",
-    "plotly>=5.0.0",
-    "numpy>=1.21.0,<2.0.0",
-    "scikit-learn>=1.3.0",
-    "earthengine-api>=1.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.7",
+    "numpy>=1.26",
     "requests>=2.31.0",
-
+    "rasterio>=1.3.9",
+    "shapely>=2.0",
+    "pyshp>=2.3",
+    "pystac>=1.10.0",
+    "planetary-computer>=1.0.0",
 ]
+
+[project.optional-dependencies]
+# Offline model training on public reflectance data (not deployed).
+training = [
+    "pandas>=2.1",
+    "scikit-learn>=1.4",
+]
+# Shelved lab-measurement matching workflow in research/ (not deployed).
+research = [
+    "pandas>=2.1",
+    "scikit-learn>=1.4",
+]
+dev = [
+    "httpx>=0.27.0",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["aquadoc_core*", "research*"]

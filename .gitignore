@@ -1,0 +1,37 @@
+# Python environments and caches
+.venv/
+venv/
+myenv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Vercel / Node (dashboard)
+.vercel/
+node_modules/
+.next/
+
+# Local databases
+*.sqlite3
+*.sqlite3-journal
+
+# Large or generated data
+/NLA 2017 Report Data Files/
+/data/raw/
+/data/processed/
+/data/external/
+/artifacts/tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
