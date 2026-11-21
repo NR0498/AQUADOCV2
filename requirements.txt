@@ -10,3 +10,4 @@ shapely>=2.0
 pyshp>=2.3
 pystac>=1.10.0
 planetary-computer>=1.0.0
+psycopg[binary]>=3.2

@@ -1,0 +1,295 @@
+{
+  "version": "s2-l2a-residual-correction-v1",
+  "created_at": "2026-11-21T04:51:05+00:00",
+  "matchups": 506,
+  "sites": 107,
+  "max_hours_apart": 24.0,
+  "by_water_body_type": {
+    "lake": 440,
+    "coastal": 50,
+    "estuary": 15,
+    "river": 1
+  },
+  "radiometry_raw": {
+    "B2": {
+      "median_difference_sr": 0.00424,
+      "mdsa_pct": 74.9,
+      "r": 0.675
+    },
+    "B3": {
+      "median_difference_sr": 0.00281,
+      "mdsa_pct": 37.44,
+      "r": 0.734
+    },
+    "B4": {
+      "median_difference_sr": 0.00204,
+      "mdsa_pct": 69.24,
+      "r": 0.818
+    },
+    "B5": {
+      "median_difference_sr": 0.00233,
+      "mdsa_pct": 84.17,
+      "r": 0.785
+    },
+    "B6": {
+      "median_difference_sr": 0.00238,
+      "mdsa_pct": 256.46,
+      "r": 0.56
+    },
+    "B7": {
+      "median_difference_sr": 0.00256,
+      "mdsa_pct": 257.54,
+      "r": 0.537
+    }
+  },
+  "radiometry_corrected_cv": {
+    "B2": {
+      "median_difference_sr": 0.000307,
+      "mdsa_pct": 41.63,
+      "r": 0.696
+    },
+    "B3": {
+      "median_difference_sr": 0.000345,
+      "mdsa_pct": 27.67,
+      "r": 0.728
+    },
+    "B4": {
+      "median_difference_sr": 0.000154,
+      "mdsa_pct": 50.46,
+      "r": 0.823
+    },
+    "B5": {
+      "median_difference_sr": 0.00022,
+      "mdsa_pct": 58.01,
+      "r": 0.783
+    },
+    "B6": {
+      "median_difference_sr": 0.00018,
+      "mdsa_pct": 165.86,
+      "r": 0.633
+    },
+    "B7": {
+      "median_difference_sr": 0.000147,
+      "mdsa_pct": 164.58,
+      "r": 0.632
+    }
+  },
+  "coefficients": {
+    "B2": {
+      "intercept": -0.0002975651032196457,
+      "gain": 0.8086652318034437,
+      "swir_b11": -0.7466278992705743
+    },
+    "B3": {
+      "intercept": -8.21043094762305e-05,
+      "gain": 0.9455307018071974,
+      "swir_b11": -0.8391677431181278
+    },
+    "B4": {
+      "intercept": -0.00027478151256247796,
+      "gain": 0.989140560559818,
+      "swir_b11": -0.9056429154727258
+    },
+    "B5": {
+      "intercept": -0.00035413106963278287,
+      "gain": 0.9476412185924749,
+      "swir_b11": -0.9475967691542995
+    },
+    "B6": {
+      "intercept": 1.57315388131762e-05,
+      "gain": 0.6853123506988842,
+      "swir_b11": -0.7081609812133514
+    },
+    "B7": {
+      "intercept": -6.882362386720711e-05,
+      "gain": 0.6745663141932269,
+      "swir_b11": -0.7267282298919578
+    }
+  },
+  "targets": {
+    "chlorophyll_a": {
+      "n": 326,
+      "sites": 60,
+      "in_situ_rrs": {
+        "n": 326,
+        "mdsa_pct": 53.49,
+        "sspb_pct": -26.93,
+        "rmse_log10": 0.331,
+        "r2_log10": 0.7832,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_raw": {
+        "n": 326,
+        "mdsa_pct": 93.61,
+        "sspb_pct": -46.81,
+        "rmse_log10": 0.588,
+        "r2_log10": 0.316,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_corrected": {
+        "n": 326,
+        "mdsa_pct": 77.65,
+        "sspb_pct": -26.4,
+        "rmse_log10": 0.4362,
+        "r2_log10": 0.6236,
+        "coverage_of_valid_rows": 1.0
+      },
+      "published_algorithm_on_corrected_satellite": {
+        "n": 287,
+        "mdsa_pct": 102.56,
+        "sspb_pct": -53.49,
+        "rmse_log10": 0.6114,
+        "r2_log10": 0.1104,
+        "coverage_of_valid_rows": 0.8804
+      },
+      "conformal_q_raw": 3.1884079103478054,
+      "interval_coverage_cv_raw": 0.804,
+      "conformal_q_corrected": 3.8775623117291023,
+      "interval_coverage_cv_corrected": 0.804
+    },
+    "tss": {
+      "n": 322,
+      "sites": 83,
+      "in_situ_rrs": {
+        "n": 322,
+        "mdsa_pct": 59.54,
+        "sspb_pct": 17.72,
+        "rmse_log10": 0.3485,
+        "r2_log10": 0.5634,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_raw": {
+        "n": 322,
+        "mdsa_pct": 102.65,
+        "sspb_pct": 80.34,
+        "rmse_log10": 0.4629,
+        "r2_log10": 0.2297,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_corrected": {
+        "n": 322,
+        "mdsa_pct": 76.49,
+        "sspb_pct": 25.03,
+        "rmse_log10": 0.3989,
+        "r2_log10": 0.4279,
+        "coverage_of_valid_rows": 1.0
+      },
+      "published_algorithm_on_corrected_satellite": {
+        "n": 319,
+        "mdsa_pct": 87.0,
+        "sspb_pct": 5.32,
+        "rmse_log10": 0.6458,
+        "r2_log10": -0.5861,
+        "coverage_of_valid_rows": 0.9907
+      },
+      "conformal_q_raw": 2.8123383565690583,
+      "interval_coverage_cv_raw": 0.789,
+      "conformal_q_corrected": 2.562239306315992,
+      "interval_coverage_cv_corrected": 0.795
+    },
+    "cdom_a440": {
+      "n": 345,
+      "sites": 72,
+      "in_situ_rrs": {
+        "n": 345,
+        "mdsa_pct": 96.85,
+        "sspb_pct": -11.79,
+        "rmse_log10": 0.4988,
+        "r2_log10": 0.3974,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_raw": {
+        "n": 345,
+        "mdsa_pct": 151.95,
+        "sspb_pct": -60.23,
+        "rmse_log10": 0.5597,
+        "r2_log10": 0.2414,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_corrected": {
+        "n": 345,
+        "mdsa_pct": 114.77,
+        "sspb_pct": -13.54,
+        "rmse_log10": 0.5922,
+        "r2_log10": 0.1506,
+        "coverage_of_valid_rows": 1.0
+      },
+      "conformal_q_raw": 3.49869580847718,
+      "interval_coverage_cv_raw": 0.771,
+      "conformal_q_corrected": 3.6701506344803674,
+      "interval_coverage_cv_corrected": 0.765
+    },
+    "turbidity": {
+      "n": 195,
+      "sites": 33,
+      "in_situ_rrs": {
+        "n": 195,
+        "mdsa_pct": 53.4,
+        "sspb_pct": 5.19,
+        "rmse_log10": 0.395,
+        "r2_log10": 0.5097,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_raw": {
+        "n": 195,
+        "mdsa_pct": 67.23,
+        "sspb_pct": 27.89,
+        "rmse_log10": 0.4601,
+        "r2_log10": 0.3346,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_corrected": {
+        "n": 195,
+        "mdsa_pct": 57.99,
+        "sspb_pct": 18.09,
+        "rmse_log10": 0.3856,
+        "r2_log10": 0.5328,
+        "coverage_of_valid_rows": 1.0
+      },
+      "published_algorithm_on_corrected_satellite": {
+        "n": 195,
+        "mdsa_pct": 55.58,
+        "sspb_pct": 9.74,
+        "rmse_log10": 0.3781,
+        "r2_log10": 0.5508,
+        "coverage_of_valid_rows": 1.0
+      },
+      "conformal_q_raw": 1.9241381999726541,
+      "interval_coverage_cv_raw": 0.8,
+      "conformal_q_corrected": 2.6943238765853144,
+      "interval_coverage_cv_corrected": 0.805
+    },
+    "secchi_depth": {
+      "n": 367,
+      "sites": 71,
+      "in_situ_rrs": {
+        "n": 367,
+        "mdsa_pct": 34.9,
+        "sspb_pct": -1.26,
+        "rmse_log10": 0.2448,
+        "r2_log10": 0.7185,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_raw": {
+        "n": 367,
+        "mdsa_pct": 43.17,
+        "sspb_pct": -25.63,
+        "rmse_log10": 0.2666,
+        "r2_log10": 0.6661,
+        "coverage_of_valid_rows": 1.0
+      },
+      "satellite_corrected": {
+        "n": 367,
+        "mdsa_pct": 73.35,
+        "sspb_pct": 7.65,
+        "rmse_log10": 0.3138,
+        "r2_log10": 0.5375,
+        "coverage_of_valid_rows": 1.0
+      },
+      "conformal_q_raw": 2.256775800047445,
+      "interval_coverage_cv_raw": 0.787,
+      "conformal_q_corrected": 2.4068823765035483,
+      "interval_coverage_cv_corrected": 0.798
+    }
+  }
+}

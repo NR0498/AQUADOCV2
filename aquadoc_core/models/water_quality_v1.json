@@ -1,0 +1,1068 @@
+{
+  "model_version": "water-quality-mlp-ensemble-v1",
+  "feature_version": "s2-rrs-b2b7-v1",
+  "feature_names": [
+    "log10_B2",
+    "log10_B3",
+    "log10_B4",
+    "log10_B5",
+    "log10_B6",
+    "log10_B7",
+    "nd_B3_B2",
+    "nd_B5_B4",
+    "nd_B6_B4"
+  ],
+  "input": "Sentinel-2 remote-sensing reflectance Rrs (sr^-1) = L2A surface reflectance / pi",
+  "bands": [
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7"
+  ],
+  "trained_at": "2026-11-21T03:56:38+00:00",
+  "training_data": {
+    "source": "GLORIA (Lehmann et al. 2023, Sci. Data 10:100), doi:10.1594/PANGAEA.948492, CC-BY-4.0",
+    "table_sha256": "d0eb45d4fd247905323bf580101c37a9567c7293bc9c41768c3a75fbc35e97ef",
+    "input_spectra": 7572,
+    "excluded_qc_flagged": 615,
+    "excluded_incomplete_b2_b7": 1196,
+    "rows_with_chlorophyll_a": 3921,
+    "rows_with_tss": 3982,
+    "rows_with_cdom_a440": 3473,
+    "rows_with_turbidity": 1202,
+    "rows_with_secchi_depth": 3138,
+    "training_spectra": 5761,
+    "spatial_groups": 745,
+    "datasets": 44
+  },
+  "config": {
+    "hidden_layers": [
+      64,
+      64
+    ],
+    "alpha": 0.001,
+    "max_iter": 300,
+    "n_members": 10,
+    "augment_copies": 3,
+    "multiplicative_noise": 0.05,
+    "additive_noise": 0.0005,
+    "test_fraction": 0.2,
+    "calibration_fraction": 0.15,
+    "interval_level": 0.8,
+    "sigma_floor": 0.05,
+    "seed": 42
+  },
+  "environment": {
+    "python": "3.12.10",
+    "numpy": "2.5.5",
+    "pandas": "3.1.1",
+    "scikit_learn": "1.9.1"
+  },
+  "targets": {
+    "chlorophyll_a": {
+      "unit": "ug/L",
+      "gloria_column": "Chla",
+      "deployed": true,
+      "n_members": 10,
+      "n_layers": 3,
+      "x_mean": [
+        -2.1940888130578258,
+        -1.9968579059012455,
+        -2.372376770799509,
+        -2.423336508723418,
+        -3.0115438351340877,
+        -3.0155832179402426,
+        0.21792880845785592,
+        -0.05636068251792829,
+        -0.5532324342436499
+      ],
+      "x_std": [
+        0.4164028358837374,
+        0.42827901613468633,
+        0.6126539708495277,
+        0.7384519444679192,
+        0.9007319617461532,
+        0.8834679584463683,
+        0.20132882180628983,
+        0.21773828456251917,
+        0.26199104627142694
+      ],
+      "y_mean": 0.9858682972240848,
+      "y_std": 0.7597867003844377,
+      "conformal_q": 3.8775623117291023,
+      "sigma_floor": 0.05,
+      "interval_level": 0.8,
+      "feature_p01": [
+        -3.329569061867079,
+        -2.995271711615782,
+        -4.1333216498843575,
+        -5.0,
+        -5.0,
+        -5.0,
+        -0.5385695197336555,
+        -0.5625628620613858,
+        -0.9824820749955218
+      ],
+      "feature_p99": [
+        -1.3890468750017542,
+        -1.1619106391388132,
+        -1.3580365351585097,
+        -1.274859055132307,
+        -1.52645553818583,
+        -1.5082234425762024,
+        0.5811325484575429,
+        0.4946193976750004,
+        0.2738226258216246
+      ],
+      "target_range_p01_p99": [
+        0.1203695,
+        228.31145500000338
+      ],
+      "split_sizes": {
+        "train": 2686,
+        "calibration": 391,
+        "test": 844,
+        "train_groups": 366,
+        "test_groups": 108
+      },
+      "evaluation": {
+        "model": {
+          "n": 844,
+          "mdsa_pct": 46.54,
+          "sspb_pct": -11.53,
+          "rmse_log10": 0.3302,
+          "r2_log10": 0.8279,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_with_simulated_satellite_noise": {
+          "n": 844,
+          "mdsa_pct": 60.88,
+          "sspb_pct": -11.15,
+          "rmse_log10": 0.3819,
+          "r2_log10": 0.7697,
+          "coverage_of_valid_rows": 1.0
+        },
+        "dummy_train_median": {
+          "n": 844,
+          "mdsa_pct": 232.8,
+          "sspb_pct": 28.06,
+          "rmse_log10": 0.8032,
+          "r2_log10": -0.0187,
+          "coverage_of_valid_rows": 1.0
+        },
+        "interval_coverage": 0.7986,
+        "median_interval_factor": 2.105,
+        "reference_gradient_boosting": {
+          "n": 844,
+          "mdsa_pct": 51.09,
+          "sspb_pct": -13.95,
+          "rmse_log10": 0.3508,
+          "r2_log10": 0.8057,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm": {
+          "name": "NDCI, Mishra & Mishra 2012",
+          "n": 669,
+          "mdsa_pct": 83.72,
+          "sspb_pct": -46.33,
+          "rmse_log10": 0.491,
+          "r2_log10": 0.4807,
+          "coverage_of_valid_rows": 0.7927
+        },
+        "model_by_water_body_type": {
+          "coastal": {
+            "n": 157,
+            "mdsa_pct": 35.4,
+            "sspb_pct": 3.61,
+            "rmse_log10": 0.2681,
+            "r2_log10": 0.8475,
+            "coverage_of_valid_rows": 1.0
+          },
+          "lake": {
+            "n": 623,
+            "mdsa_pct": 44.51,
+            "sspb_pct": -14.33,
+            "rmse_log10": 0.3214,
+            "r2_log10": 0.7789,
+            "coverage_of_valid_rows": 1.0
+          },
+          "other": {
+            "n": 21,
+            "mdsa_pct": 80.54,
+            "sspb_pct": 41.1,
+            "rmse_log10": 0.3377,
+            "r2_log10": -1.6274,
+            "coverage_of_valid_rows": 1.0
+          },
+          "river": {
+            "n": 42,
+            "mdsa_pct": 110.67,
+            "sspb_pct": -106.41,
+            "rmse_log10": 0.5736,
+            "r2_log10": -0.6021,
+            "coverage_of_valid_rows": 1.0
+          }
+        }
+      },
+      "satellite_validation": {
+        "n": 326,
+        "sites": 60,
+        "in_situ_rrs": {
+          "n": 326,
+          "mdsa_pct": 53.49,
+          "sspb_pct": -26.93,
+          "rmse_log10": 0.331,
+          "r2_log10": 0.7832,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_raw": {
+          "n": 326,
+          "mdsa_pct": 93.61,
+          "sspb_pct": -46.81,
+          "rmse_log10": 0.588,
+          "r2_log10": 0.316,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_corrected": {
+          "n": 326,
+          "mdsa_pct": 77.65,
+          "sspb_pct": -26.4,
+          "rmse_log10": 0.4362,
+          "r2_log10": 0.6236,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm_on_corrected_satellite": {
+          "n": 287,
+          "mdsa_pct": 102.56,
+          "sspb_pct": -53.49,
+          "rmse_log10": 0.6114,
+          "r2_log10": 0.1104,
+          "coverage_of_valid_rows": 0.8804
+        },
+        "conformal_q_raw": 3.1884079103478054,
+        "interval_coverage_cv_raw": 0.804,
+        "conformal_q_corrected": 3.8775623117291023,
+        "interval_coverage_cv_corrected": 0.804
+      },
+      "conformal_q_in_situ": 2.2749918815638575,
+      "satellite_input": "corrected",
+      "interval_basis": "satellite match-ups, corrected reflectance (conformal)"
+    },
+    "tss": {
+      "unit": "mg/L",
+      "gloria_column": "TSS",
+      "deployed": true,
+      "n_members": 10,
+      "n_layers": 3,
+      "x_mean": [
+        -2.175163391243101,
+        -1.937092865561527,
+        -2.225332933638123,
+        -2.2534529574926285,
+        -2.776504753651718,
+        -2.7961633344410606,
+        0.2615240633473404,
+        -0.03300395810783122,
+        -0.5215719378463887
+      ],
+      "x_std": [
+        0.4273368282617916,
+        0.40218638790086614,
+        0.4999125760806224,
+        0.5734744180331456,
+        0.6696949558268951,
+        0.6942385468903164,
+        0.15286914292447146,
+        0.18597998492932363,
+        0.23169876713748466
+      ],
+      "y_mean": 1.0057532466128196,
+      "y_std": 0.5792700198845651,
+      "conformal_q": 2.562239306315992,
+      "sigma_floor": 0.05,
+      "interval_level": 0.8,
+      "feature_p01": [
+        -3.3583852210963143,
+        -3.0282335911177762,
+        -3.5177982484644903,
+        -3.7652552194144673,
+        -4.608903476387604,
+        -4.834148714278525,
+        -0.21073879905048823,
+        -0.3450816413012883,
+        -0.9324606938223807
+      ],
+      "feature_p99": [
+        -1.3848398328474452,
+        -1.1618989526277927,
+        -1.2905635245935796,
+        -1.2685719444616976,
+        -1.4529011440719974,
+        -1.4653530550266856,
+        0.5867639604167604,
+        0.48704181299901955,
+        0.2406101603783814
+      ],
+      "target_range_p01_p99": [
+        0.4036958174904974,
+        223.8174000000004
+      ],
+      "split_sizes": {
+        "train": 2855,
+        "calibration": 307,
+        "test": 820,
+        "train_groups": 349,
+        "test_groups": 103
+      },
+      "evaluation": {
+        "model": {
+          "n": 820,
+          "mdsa_pct": 56.79,
+          "sspb_pct": 10.58,
+          "rmse_log10": 0.3906,
+          "r2_log10": 0.4788,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_with_simulated_satellite_noise": {
+          "n": 820,
+          "mdsa_pct": 60.32,
+          "sspb_pct": 7.68,
+          "rmse_log10": 0.3975,
+          "r2_log10": 0.46,
+          "coverage_of_valid_rows": 1.0
+        },
+        "dummy_train_median": {
+          "n": 820,
+          "mdsa_pct": 130.02,
+          "sspb_pct": 27.84,
+          "rmse_log10": 0.5598,
+          "r2_log10": -0.0709,
+          "coverage_of_valid_rows": 1.0
+        },
+        "interval_coverage": 0.7683,
+        "median_interval_factor": 2.257,
+        "reference_gradient_boosting": {
+          "n": 820,
+          "mdsa_pct": 64.95,
+          "sspb_pct": 9.6,
+          "rmse_log10": 0.4061,
+          "r2_log10": 0.4365,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm": {
+          "name": "Nechad et al. 2010 (665 nm)",
+          "n": 800,
+          "mdsa_pct": 87.73,
+          "sspb_pct": -10.3,
+          "rmse_log10": 0.5177,
+          "r2_log10": 0.0035,
+          "coverage_of_valid_rows": 0.9756
+        },
+        "model_by_water_body_type": {
+          "coastal": {
+            "n": 163,
+            "mdsa_pct": 63.06,
+            "sspb_pct": 11.97,
+            "rmse_log10": 0.5103,
+            "r2_log10": 0.0977,
+            "coverage_of_valid_rows": 1.0
+          },
+          "estuary": {
+            "n": 40,
+            "mdsa_pct": 164.14,
+            "sspb_pct": -137.95,
+            "rmse_log10": 0.5981,
+            "r2_log10": -1.4799,
+            "coverage_of_valid_rows": 1.0
+          },
+          "lake": {
+            "n": 552,
+            "mdsa_pct": 48.83,
+            "sspb_pct": 16.73,
+            "rmse_log10": 0.2922,
+            "r2_log10": 0.6297,
+            "coverage_of_valid_rows": 1.0
+          },
+          "river": {
+            "n": 65,
+            "mdsa_pct": 114.81,
+            "sspb_pct": -42.25,
+            "rmse_log10": 0.5708,
+            "r2_log10": -0.0076,
+            "coverage_of_valid_rows": 1.0
+          }
+        }
+      },
+      "satellite_validation": {
+        "n": 322,
+        "sites": 83,
+        "in_situ_rrs": {
+          "n": 322,
+          "mdsa_pct": 59.54,
+          "sspb_pct": 17.72,
+          "rmse_log10": 0.3485,
+          "r2_log10": 0.5634,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_raw": {
+          "n": 322,
+          "mdsa_pct": 102.65,
+          "sspb_pct": 80.34,
+          "rmse_log10": 0.4629,
+          "r2_log10": 0.2297,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_corrected": {
+          "n": 322,
+          "mdsa_pct": 76.49,
+          "sspb_pct": 25.03,
+          "rmse_log10": 0.3989,
+          "r2_log10": 0.4279,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm_on_corrected_satellite": {
+          "n": 319,
+          "mdsa_pct": 87.0,
+          "sspb_pct": 5.32,
+          "rmse_log10": 0.6458,
+          "r2_log10": -0.5861,
+          "coverage_of_valid_rows": 0.9907
+        },
+        "conformal_q_raw": 2.8123383565690583,
+        "interval_coverage_cv_raw": 0.789,
+        "conformal_q_corrected": 2.562239306315992,
+        "interval_coverage_cv_corrected": 0.795
+      },
+      "conformal_q_in_situ": 2.111294749255382,
+      "satellite_input": "corrected",
+      "interval_basis": "satellite match-ups, corrected reflectance (conformal)"
+    },
+    "cdom_a440": {
+      "unit": "1/m",
+      "gloria_column": "aCDOM440",
+      "deployed": true,
+      "n_members": 10,
+      "n_layers": 3,
+      "x_mean": [
+        -2.215156720755841,
+        -1.9931338664160936,
+        -2.3230677159597706,
+        -2.36913861704375,
+        -2.9363758714285044,
+        -2.932287962762079,
+        0.24410577662620556,
+        -0.05196607649647488,
+        -0.5417441933390235
+      ],
+      "x_std": [
+        0.38633216261669756,
+        0.3877134279817349,
+        0.5563376800863118,
+        0.6676743545391381,
+        0.824389538140215,
+        0.8047399736000732,
+        0.18652260518374086,
+        0.20975257999881672,
+        0.2581481384894176
+      ],
+      "y_mean": -0.2993408415009376,
+      "y_std": 0.6298849399791253,
+      "conformal_q": 3.6701506344803674,
+      "sigma_floor": 0.05,
+      "interval_level": 0.8,
+      "feature_p01": [
+        -3.275127518177022,
+        -2.9299462917114694,
+        -3.9691059207268533,
+        -4.424344923276402,
+        -5.0,
+        -5.0,
+        -0.4954243117752345,
+        -0.505172175225014,
+        -0.9851693516524511
+      ],
+      "feature_p99": [
+        -1.5213319425281469,
+        -1.3301392104051468,
+        -1.4077153309832346,
+        -1.342528018586014,
+        -1.5310205531423986,
+        -1.5239821546036143,
+        0.5638124916215369,
+        0.49001847346158156,
+        0.3421158062660047
+      ],
+      "target_range_p01_p99": [
+        0.010298493740000001,
+        8.798316261419988
+      ],
+      "split_sizes": {
+        "train": 2483,
+        "calibration": 348,
+        "test": 642,
+        "train_groups": 340,
+        "test_groups": 100
+      },
+      "evaluation": {
+        "model": {
+          "n": 642,
+          "mdsa_pct": 60.19,
+          "sspb_pct": -6.67,
+          "rmse_log10": 0.4041,
+          "r2_log10": 0.619,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_with_simulated_satellite_noise": {
+          "n": 642,
+          "mdsa_pct": 72.18,
+          "sspb_pct": -8.04,
+          "rmse_log10": 0.4349,
+          "r2_log10": 0.5588,
+          "coverage_of_valid_rows": 1.0
+        },
+        "dummy_train_median": {
+          "n": 642,
+          "mdsa_pct": 118.04,
+          "sspb_pct": 53.01,
+          "rmse_log10": 0.7202,
+          "r2_log10": -0.2101,
+          "coverage_of_valid_rows": 1.0
+        },
+        "interval_coverage": 0.824,
+        "median_interval_factor": 2.675,
+        "reference_gradient_boosting": {
+          "n": 642,
+          "mdsa_pct": 56.95,
+          "sspb_pct": -5.72,
+          "rmse_log10": 0.4003,
+          "r2_log10": 0.6263,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_by_water_body_type": {
+          "coastal": {
+            "n": 221,
+            "mdsa_pct": 54.06,
+            "sspb_pct": 28.58,
+            "rmse_log10": 0.4087,
+            "r2_log10": 0.5119,
+            "coverage_of_valid_rows": 1.0
+          },
+          "estuary": {
+            "n": 38,
+            "mdsa_pct": 144.35,
+            "sspb_pct": 90.39,
+            "rmse_log10": 0.4865,
+            "r2_log10": -2.2869,
+            "coverage_of_valid_rows": 1.0
+          },
+          "lake": {
+            "n": 340,
+            "mdsa_pct": 57.82,
+            "sspb_pct": -32.89,
+            "rmse_log10": 0.3701,
+            "r2_log10": 0.3806,
+            "coverage_of_valid_rows": 1.0
+          },
+          "river": {
+            "n": 43,
+            "mdsa_pct": 86.0,
+            "sspb_pct": -29.91,
+            "rmse_log10": 0.5364,
+            "r2_log10": -0.6671,
+            "coverage_of_valid_rows": 1.0
+          }
+        }
+      },
+      "satellite_validation": {
+        "n": 345,
+        "sites": 72,
+        "in_situ_rrs": {
+          "n": 345,
+          "mdsa_pct": 96.85,
+          "sspb_pct": -11.79,
+          "rmse_log10": 0.4988,
+          "r2_log10": 0.3974,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_raw": {
+          "n": 345,
+          "mdsa_pct": 151.95,
+          "sspb_pct": -60.23,
+          "rmse_log10": 0.5597,
+          "r2_log10": 0.2414,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_corrected": {
+          "n": 345,
+          "mdsa_pct": 114.77,
+          "sspb_pct": -13.54,
+          "rmse_log10": 0.5922,
+          "r2_log10": 0.1506,
+          "coverage_of_valid_rows": 1.0
+        },
+        "conformal_q_raw": 3.49869580847718,
+        "interval_coverage_cv_raw": 0.771,
+        "conformal_q_corrected": 3.6701506344803674,
+        "interval_coverage_cv_corrected": 0.765
+      },
+      "conformal_q_in_situ": 2.3275955699304975,
+      "satellite_input": "corrected",
+      "interval_basis": "satellite match-ups, corrected reflectance (conformal)"
+    },
+    "turbidity": {
+      "unit": "NTU",
+      "gloria_column": "Turbidity",
+      "deployed": true,
+      "n_members": 10,
+      "n_layers": 3,
+      "x_mean": [
+        -2.189883902445736,
+        -1.9459668686560254,
+        -2.2909831652015895,
+        -2.3161027930038345,
+        -2.8468721820172456,
+        -2.865836748082521,
+        0.26633158485465197,
+        -0.031463380571265485,
+        -0.5417012107117083
+      ],
+      "x_std": [
+        0.47603708262832056,
+        0.41907805042292423,
+        0.4793099207126682,
+        0.5397905505078829,
+        0.5845680228800025,
+        0.5959935675241852,
+        0.14865067824439682,
+        0.1994308054367755,
+        0.19750373614117722
+      ],
+      "y_mean": 0.7338448586549087,
+      "y_std": 0.5428185928329743,
+      "conformal_q": 2.6943238765853144,
+      "sigma_floor": 0.05,
+      "interval_level": 0.8,
+      "feature_p01": [
+        -3.458968150010313,
+        -2.8871371073273617,
+        -3.3298245088041156,
+        -3.541900248146176,
+        -4.180135828291526,
+        -4.349664444319982,
+        -0.06270646255822321,
+        -0.3074540210526859,
+        -0.8151241735194796
+      ],
+      "feature_p99": [
+        -1.3468033156764765,
+        -1.1095041607138678,
+        -1.3656828494261364,
+        -1.2757309957287646,
+        -1.7348933525032675,
+        -1.7568635412372853,
+        0.5959954531510544,
+        0.48519297881913087,
+        0.02714490841698167
+      ],
+      "target_range_p01_p99": [
+        0.37994,
+        69.916
+      ],
+      "split_sizes": {
+        "train": 639,
+        "calibration": 259,
+        "test": 304,
+        "train_groups": 76,
+        "test_groups": 23
+      },
+      "evaluation": {
+        "model": {
+          "n": 304,
+          "mdsa_pct": 62.25,
+          "sspb_pct": -40.06,
+          "rmse_log10": 0.3222,
+          "r2_log10": 0.6266,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_with_simulated_satellite_noise": {
+          "n": 304,
+          "mdsa_pct": 53.81,
+          "sspb_pct": -24.93,
+          "rmse_log10": 0.3254,
+          "r2_log10": 0.619,
+          "coverage_of_valid_rows": 1.0
+        },
+        "dummy_train_median": {
+          "n": 304,
+          "mdsa_pct": 109.76,
+          "sspb_pct": -15.56,
+          "rmse_log10": 0.5304,
+          "r2_log10": -0.0121,
+          "coverage_of_valid_rows": 1.0
+        },
+        "interval_coverage": 0.5592,
+        "median_interval_factor": 1.712,
+        "reference_gradient_boosting": {
+          "n": 304,
+          "mdsa_pct": 50.83,
+          "sspb_pct": -32.04,
+          "rmse_log10": 0.3129,
+          "r2_log10": 0.6476,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm": {
+          "name": "Dogliotti et al. 2015",
+          "n": 282,
+          "mdsa_pct": 131.65,
+          "sspb_pct": -112.55,
+          "rmse_log10": 0.4702,
+          "r2_log10": 0.1392,
+          "coverage_of_valid_rows": 0.9276
+        },
+        "model_by_water_body_type": {
+          "lake": {
+            "n": 291,
+            "mdsa_pct": 64.58,
+            "sspb_pct": -40.78,
+            "rmse_log10": 0.3277,
+            "r2_log10": 0.5775,
+            "coverage_of_valid_rows": 1.0
+          }
+        }
+      },
+      "satellite_validation": {
+        "n": 195,
+        "sites": 33,
+        "in_situ_rrs": {
+          "n": 195,
+          "mdsa_pct": 53.4,
+          "sspb_pct": 5.19,
+          "rmse_log10": 0.395,
+          "r2_log10": 0.5097,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_raw": {
+          "n": 195,
+          "mdsa_pct": 67.23,
+          "sspb_pct": 27.89,
+          "rmse_log10": 0.4601,
+          "r2_log10": 0.3346,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_corrected": {
+          "n": 195,
+          "mdsa_pct": 57.99,
+          "sspb_pct": 18.09,
+          "rmse_log10": 0.3856,
+          "r2_log10": 0.5328,
+          "coverage_of_valid_rows": 1.0
+        },
+        "published_algorithm_on_corrected_satellite": {
+          "n": 195,
+          "mdsa_pct": 55.58,
+          "sspb_pct": 9.74,
+          "rmse_log10": 0.3781,
+          "r2_log10": 0.5508,
+          "coverage_of_valid_rows": 1.0
+        },
+        "conformal_q_raw": 1.9241381999726541,
+        "interval_coverage_cv_raw": 0.8,
+        "conformal_q_corrected": 2.6943238765853144,
+        "interval_coverage_cv_corrected": 0.805
+      },
+      "conformal_q_in_situ": 2.20318956981905,
+      "satellite_input": "corrected",
+      "interval_basis": "satellite match-ups, corrected reflectance (conformal)"
+    },
+    "secchi_depth": {
+      "unit": "m",
+      "gloria_column": "Secchi_depth",
+      "deployed": true,
+      "n_members": 10,
+      "n_layers": 3,
+      "x_mean": [
+        -2.160165061698735,
+        -1.9194323273632656,
+        -2.2367795982151875,
+        -2.2677049401570013,
+        -2.778533392241067,
+        -2.789009044546633,
+        0.2643598946032663,
+        -0.03712333279541287,
+        -0.523009791833465
+      ],
+      "x_std": [
+        0.4271683807066396,
+        0.39976874833519144,
+        0.483657283296834,
+        0.5579953514661705,
+        0.6220790490162389,
+        0.6308722742874687,
+        0.14540442489378588,
+        0.18907221973548777,
+        0.2323971993300139
+      ],
+      "y_mean": 0.020891696041407264,
+      "y_std": 0.4345178526417513,
+      "conformal_q": 2.256775800047445,
+      "sigma_floor": 0.05,
+      "interval_level": 0.8,
+      "feature_p01": [
+        -3.3078741104722944,
+        -3.0053408955507437,
+        -3.4577709673783485,
+        -3.6868020809544557,
+        -4.376699987082594,
+        -4.501103462338679,
+        -0.1609838385420593,
+        -0.32892881457697615,
+        -0.8671973168921833
+      ],
+      "feature_p99": [
+        -1.3468531885691903,
+        -1.1193347309695272,
+        -1.26166832920558,
+        -1.2330498238114422,
+        -1.4592962825162712,
+        -1.4661166532008298,
+        0.5812316305727746,
+        0.5639553637853281,
+        0.3569066376370805
+      ],
+      "target_range_p01_p99": [
+        0.15,
+        11.5
+      ],
+      "split_sizes": {
+        "train": 2257,
+        "calibration": 317,
+        "test": 564,
+        "train_groups": 296,
+        "test_groups": 88
+      },
+      "evaluation": {
+        "model": {
+          "n": 564,
+          "mdsa_pct": 30.63,
+          "sspb_pct": -7.49,
+          "rmse_log10": 0.2268,
+          "r2_log10": 0.8099,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_with_simulated_satellite_noise": {
+          "n": 564,
+          "mdsa_pct": 35.58,
+          "sspb_pct": -8.68,
+          "rmse_log10": 0.2494,
+          "r2_log10": 0.7701,
+          "coverage_of_valid_rows": 1.0
+        },
+        "dummy_train_median": {
+          "n": 564,
+          "mdsa_pct": 180.0,
+          "sspb_pct": -2.04,
+          "rmse_log10": 0.5212,
+          "r2_log10": -0.0042,
+          "coverage_of_valid_rows": 1.0
+        },
+        "interval_coverage": 0.7004,
+        "median_interval_factor": 1.555,
+        "reference_gradient_boosting": {
+          "n": 564,
+          "mdsa_pct": 36.66,
+          "sspb_pct": -3.37,
+          "rmse_log10": 0.2375,
+          "r2_log10": 0.7916,
+          "coverage_of_valid_rows": 1.0
+        },
+        "model_by_water_body_type": {
+          "coastal": {
+            "n": 42,
+            "mdsa_pct": 31.82,
+            "sspb_pct": -9.8,
+            "rmse_log10": 0.3202,
+            "r2_log10": 0.2866,
+            "coverage_of_valid_rows": 1.0
+          },
+          "estuary": {
+            "n": 74,
+            "mdsa_pct": 41.99,
+            "sspb_pct": 7.33,
+            "rmse_log10": 0.2686,
+            "r2_log10": -0.6728,
+            "coverage_of_valid_rows": 1.0
+          },
+          "lake": {
+            "n": 408,
+            "mdsa_pct": 30.57,
+            "sspb_pct": -9.36,
+            "rmse_log10": 0.2102,
+            "r2_log10": 0.8543,
+            "coverage_of_valid_rows": 1.0
+          },
+          "river": {
+            "n": 39,
+            "mdsa_pct": 19.7,
+            "sspb_pct": 1.23,
+            "rmse_log10": 0.1673,
+            "r2_log10": 0.2871,
+            "coverage_of_valid_rows": 1.0
+          }
+        }
+      },
+      "satellite_validation": {
+        "n": 367,
+        "sites": 71,
+        "in_situ_rrs": {
+          "n": 367,
+          "mdsa_pct": 34.9,
+          "sspb_pct": -1.26,
+          "rmse_log10": 0.2448,
+          "r2_log10": 0.7185,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_raw": {
+          "n": 367,
+          "mdsa_pct": 43.17,
+          "sspb_pct": -25.63,
+          "rmse_log10": 0.2666,
+          "r2_log10": 0.6661,
+          "coverage_of_valid_rows": 1.0
+        },
+        "satellite_corrected": {
+          "n": 367,
+          "mdsa_pct": 73.35,
+          "sspb_pct": 7.65,
+          "rmse_log10": 0.3138,
+          "r2_log10": 0.5375,
+          "coverage_of_valid_rows": 1.0
+        },
+        "conformal_q_raw": 2.256775800047445,
+        "interval_coverage_cv_raw": 0.787,
+        "conformal_q_corrected": 2.4068823765035483,
+        "interval_coverage_cv_corrected": 0.798
+      },
+      "conformal_q_in_situ": 1.4978025978452671,
+      "satellite_input": "raw",
+      "interval_basis": "satellite match-ups, raw reflectance (conformal)"
+    }
+  },
+  "satellite_correction": {
+    "version": "s2-l2a-residual-correction-v1",
+    "applied": true,
+    "targets_using_correction": [
+      "cdom_a440",
+      "chlorophyll_a",
+      "tss",
+      "turbidity"
+    ],
+    "formula": "Rrs = intercept + gain * Rrs_L2A + swir_b11 * Rrs_L2A(B11), Rrs_L2A = rho / pi",
+    "coefficients": {
+      "B2": {
+        "intercept": -0.0002975651032196457,
+        "gain": 0.8086652318034437,
+        "swir_b11": -0.7466278992705743
+      },
+      "B3": {
+        "intercept": -8.21043094762305e-05,
+        "gain": 0.9455307018071974,
+        "swir_b11": -0.8391677431181278
+      },
+      "B4": {
+        "intercept": -0.00027478151256247796,
+        "gain": 0.989140560559818,
+        "swir_b11": -0.9056429154727258
+      },
+      "B5": {
+        "intercept": -0.00035413106963278287,
+        "gain": 0.9476412185924749,
+        "swir_b11": -0.9475967691542995
+      },
+      "B6": {
+        "intercept": 1.57315388131762e-05,
+        "gain": 0.6853123506988842,
+        "swir_b11": -0.7081609812133514
+      },
+      "B7": {
+        "intercept": -6.882362386720711e-05,
+        "gain": 0.6745663141932269,
+        "swir_b11": -0.7267282298919578
+      }
+    },
+    "matchups": 506,
+    "sites": 107,
+    "max_hours_apart": 24.0,
+    "by_water_body_type": {
+      "lake": 440,
+      "coastal": 50,
+      "estuary": 15,
+      "river": 1
+    },
+    "radiometry_raw": {
+      "B2": {
+        "median_difference_sr": 0.00424,
+        "mdsa_pct": 74.9,
+        "r": 0.675
+      },
+      "B3": {
+        "median_difference_sr": 0.00281,
+        "mdsa_pct": 37.44,
+        "r": 0.734
+      },
+      "B4": {
+        "median_difference_sr": 0.00204,
+        "mdsa_pct": 69.24,
+        "r": 0.818
+      },
+      "B5": {
+        "median_difference_sr": 0.00233,
+        "mdsa_pct": 84.17,
+        "r": 0.785
+      },
+      "B6": {
+        "median_difference_sr": 0.00238,
+        "mdsa_pct": 256.46,
+        "r": 0.56
+      },
+      "B7": {
+        "median_difference_sr": 0.00256,
+        "mdsa_pct": 257.54,
+        "r": 0.537
+      }
+    },
+    "radiometry_corrected_cv": {
+      "B2": {
+        "median_difference_sr": 0.000307,
+        "mdsa_pct": 41.63,
+        "r": 0.696
+      },
+      "B3": {
+        "median_difference_sr": 0.000345,
+        "mdsa_pct": 27.67,
+        "r": 0.728
+      },
+      "B4": {
+        "median_difference_sr": 0.000154,
+        "mdsa_pct": 50.46,
+        "r": 0.823
+      },
+      "B5": {
+        "median_difference_sr": 0.00022,
+        "mdsa_pct": 58.01,
+        "r": 0.783
+      },
+      "B6": {
+        "median_difference_sr": 0.00018,
+        "mdsa_pct": 165.86,
+        "r": 0.633
+      },
+      "B7": {
+        "median_difference_sr": 0.000147,
+        "mdsa_pct": 164.58,
+        "r": 0.632
+      }
+    }
+  }
+}

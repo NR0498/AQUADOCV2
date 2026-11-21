@@ -48,7 +48,44 @@ def build_parser() -> argparse.ArgumentParser:
     show_run.add_argument("run_id", help="UUID printed by the analyze command.")
     show_run.add_argument("--db", default=str(DEFAULT_DATABASE_PATH), help="SQLite database path.")
 
+    water = subparsers.add_parser(
+        "water", help="Estimate water quality for a water body from the latest clear Sentinel-2 scene."
+    )
+    water.add_argument("--lat", type=float, required=True, help="Latitude of a point on the water body.")
+    water.add_argument("--lon", type=float, required=True, help="Longitude of a point on the water body.")
+    water.add_argument("--start", help="Start date YYYY-MM-DD (default: 60 days before --end).")
+    water.add_argument("--end", help="End date YYYY-MM-DD (default: today).")
+    water.add_argument("--max-size-m", type=int, default=5000, help="Largest analysis window in metres.")
+    water.add_argument("--osm", help="OpenStreetMap reference such as relation/2833155 (fast outline lookup).")
+    water.add_argument("--out", default="output/water", help="Directory for result.json and PNG layers.")
     return parser
+
+
+def run_water(args: argparse.Namespace) -> int:
+    for stream in (sys.stdout, sys.stderr):  # stage messages contain non-ASCII symbols
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    from pathlib import Path
+
+    from .water_pipeline import WaterAnalysisRequest, run_water_analysis
+
+    request = WaterAnalysisRequest(latitude=args.lat, longitude=args.lon, start_date=args.start,
+                                   end_date=args.end, max_size_m=args.max_size_m, osm_ref=args.osm)
+    output = Path(args.out)
+    for event in run_water_analysis(request):
+        print(f"[{event.elapsed_ms / 1000:6.1f}s] {event.stage:8s} {event.status:9s} {event.message}", file=sys.stderr)
+        if event.status == "failed":
+            print(json.dumps(event.to_dict(), indent=2), file=sys.stderr)
+            return 1
+        if event.stage == "complete":
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "result.json").write_text(json.dumps(event.data, indent=2), encoding="utf-8")
+            for name, png in event.images.items():
+                (output / f"{name}.png").write_bytes(png)
+            print(json.dumps({"output": str(output), "estimates": {
+                k: {"value": v["value"], "unit": v["unit"], "interval": v["interval"], "confidence": v["confidence"]}
+                for k, v in event.data["estimates"].items()}}, indent=2))
+    return 0
 
 
 def run_analyze(
@@ -73,6 +110,8 @@ def main(
 ) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "water":
+        return run_water(args)
 
     try:
         if args.command == "analyze":

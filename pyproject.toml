@@ -17,6 +17,7 @@ dependencies = [
     "pyshp>=2.3",
     "pystac>=1.10.0",
     "planetary-computer>=1.0.0",
+    "psycopg[binary]>=3.2",  # PostgreSQL (Neon) when DATABASE_URL is set
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,7 @@ dependencies = [
 training = [
     "pandas>=2.1",
     "scikit-learn>=1.4",
+    "openpyxl>=3.1",
 ]
 # Shelved lab-measurement matching workflow in research/ (not deployed).
 research = [
@@ -39,4 +41,8 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["aquadoc_core*", "research*"]
+include = ["aquadoc_core*", "research*", "training*"]
+
+[tool.setuptools.package-data]
+# Trained model weights and model card ship with the API package.
+aquadoc_core = ["models/*.npz", "models/*.json"]

@@ -2,6 +2,8 @@
 
 This file is a beginner-friendly build journal for turning the current AquaDoc demo into a real geospatial machine-learning project.
 
+> **Reading order.** Sections 1–22 are the original journal (Streamlit demo → lab-measurement matching). In November 2026 the project changed direction: estimate optically detectable water quality from Sentinel-2 alone, using a model trained on a public reflectance dataset, and show it in a Vercel dashboard. Sections 23 onward follow the new plan, one section per phase. Each one has what was built, the concepts, a step-by-step way to redo it yourself, exercises and free resources. The lab-matching code from sections 14–22 now lives in `research/`.
+
 ## 1. What The Project Wants To Become
 
 Goal: given coordinates, fetch or prepare multispectral satellite imagery, estimate water safety, and explain likely pollution signals such as algae bloom, turbidity, oil/surface film, floating vegetation, or debris.
@@ -1650,3 +1652,373 @@ dataset's history and can be traced when a model is retrained.
 .venv\Scripts\python.exe -m aquadoc_core.cli review-matches --help
 .venv\Scripts\python.exe -m aquadoc_core.cli review-match --help
 ```
+
+## 23. Phase 0 — Repository Cleanup
+
+### What was done
+
+- Removed the Streamlit demo (`app.py`, `utils/`, `models/`, demo data generators, Streamlit deploy files). It's still in Git history.
+- Stopped tracking ~23,000 files of `.venv/` with `git rm -r --cached .venv`. This removes them from Git's index but leaves your local files untouched.
+- Wrote a real `.gitignore` (environments, caches, secrets, databases, large data).
+- Moved the lab-matching workflow into `research/lab_matching/` with its own CLI and tests. The deployed package `aquadoc_core` no longer imports it.
+- Split dependencies. `[project.dependencies]` is only what the API needs. `training`, `research` and `dev` are optional extras.
+- Pinned Python 3.12 and verified with a fresh virtual environment.
+- Fixed a Windows-only test failure: `with sqlite3.connect(...)` commits but does **not** close the connection, so Windows refused to delete the temporary database. `contextlib.closing(...)` fixes it.
+
+### Concepts to study
+
+| Concept | Why it matters here | Resource |
+| --- | --- | --- |
+| `.gitignore` patterns | Keep environments, secrets and data out of the repository | https://git-scm.com/docs/gitignore |
+| Index vs. working tree (`git rm --cached`) | Untrack files without deleting them | https://git-scm.com/book/en/v2/Git-Basics-Recording-Changes-to-the-Repository |
+| Virtual environments | Isolated, reproducible installs; never commit them | https://docs.python.org/3/library/venv.html |
+| `pyproject.toml` and optional dependencies | One source of truth for what to install, per use case | https://packaging.python.org/en/latest/guides/writing-pyproject-toml/ |
+| Package layout and dependency direction | The deployed package must not depend on research code | https://docs.python.org/3/tutorial/modules.html#packages |
+| Context managers | Why `with connect()` ≠ `with closing(connect())` | https://docs.python.org/3/library/sqlite3.html#sqlite3-connection-context-manager |
+
+### Redo it yourself
+
+1. `git ls-files | wc -l` to see how much is tracked. `git ls-files | grep -c '^.venv'` shows how much of that is the environment.
+2. Write `.gitignore`, then `git rm -r --cached .venv` and `git status` to confirm the files still exist on disk.
+3. Draw the import graph: `grep -rn "^from \.\|^import" aquadoc_core/`. Anything the API doesn't need should move out.
+4. Create a throwaway venv (`py -3.12 -m venv /tmp/v`), `pip install -e ".[dev]"`, run the tests. If anything is missing from `pyproject.toml`, this step exposes it. Here it found that `shapely` and `pyshp` were used but never declared.
+
+### Exercises
+
+- Why is a stale lockfile worse than none for a deployment platform?
+- Install only `pip install -e .` (no extras) and run `python -c "import aquadoc_core.api"`. Which packages had to be present?
+
+
+## 24. Phase 1 — Training A Water-Quality Model On Public Spectral Data
+
+### The idea in one paragraph
+
+A satellite pixel gives you reflectance in a handful of bands. To turn reflectance into "12 µg/L chlorophyll" a model must have seen many examples of *reflectance → measured concentration*. Collecting those yourself means boats, bottles and labs. Instead we use **GLORIA**, a public dataset of 7,572 hyperspectral reflectance spectra measured just above the water surface in lakes, rivers, estuaries and coasts, each paired with lab results. We convert each 1-nm spectrum into what Sentinel-2 would see, train on that, and later apply the model to real satellite pixels.
+
+### What was built
+
+| File | Role |
+| --- | --- |
+| `training/download.py` | Downloads GLORIA (PANGAEA) and the ESA Sentinel-2 spectral response functions, verifying pinned SHA-256 checksums |
+| `training/srf.py` | Parses spectral response functions; convolves hyperspectral spectra into Sentinel-2 bands |
+| `training/gloria.py` | Loads GLORIA, removes QC-flagged spectra, simulates bands B2–B7 and B8A, attaches targets and spatial groups |
+| `training/train.py` | Spatial train/calibration/test split, MLP ensembles, noise augmentation, conformal intervals, baselines, export |
+| `training/model_card.py` | Writes `docs/models/water_quality_v1.md` from the exported metadata |
+| `aquadoc_core/wq_features.py` | The feature builder, shared by training and inference so they can never drift apart |
+| `aquadoc_core/wq_algorithms.py` | Published algorithms: Mishra NDCI chlorophyll, Nechad TSS, Dogliotti turbidity |
+| `aquadoc_core/wq_model.py` | NumPy-only inference: loads `models/water_quality_v1.{npz,json}`, returns median, interval and an out-of-domain flag per pixel |
+
+Results are in `docs/models/water_quality_v1.md`. On regions the model never saw, chlorophyll-a has a median error of about 47%, against 84% for the best-known published formula. The model is best in lakes and coasts and weakest in rivers and estuaries.
+
+### Concepts to study, in order
+
+**1. Remote-sensing reflectance (Rrs).** Rrs = water-leaving radiance ÷ downwelling irradiance (sr⁻¹). It describes the water itself, independent of how bright the day is. Satellite L2A "surface reflectance" ρ relates to it as Rrs ≈ ρ/π.
+- Ocean Optics Web Book, *Reflectances*: https://www.oceanopticsbook.info/view/radiometry-and-photometry/reflectances
+- Ocean Optics Web Book (overview): https://www.oceanopticsbook.info/
+
+**2. Why each band sees a different substance.**
+- Chlorophyll absorbs strongly at ~665 nm (B4). Algal cells scatter, so reflectance peaks near 705 nm (B5). The ratio of B5 to B4 is the NDCI.
+- CDOM (dissolved organic matter) absorbs blue (B2) far more than green (B3).
+- Suspended sediment raises reflectance across red and NIR (B4, B7, B8A). The more turbid the water, the further into the NIR the signal survives.
+- Water itself absorbs NIR strongly, so clear water is almost black beyond 700 nm.
+- Gholizadeh et al. (2016), *A Comprehensive Review on Water Quality Parameters Estimation Using Remote Sensing Techniques*, Sensors 16(8):1298 (open access): https://www.mdpi.com/1424-8220/16/8/1298
+- IOCCG Report 3, *Remote Sensing of Ocean Colour in Coastal and Other Optically-Complex Waters* (free PDF): https://ioccg.org/reports/report3.pdf
+
+**3. Spectral response functions and band convolution.** A band is a weighted average over a wavelength range. `training/srf.py` implements `sum(Rrs·S) / sum(S)`. Rows missing part of the band are rejected rather than averaged over the part they do have.
+- Sentinel-2 mission and MSI bands: https://sentiwiki.copernicus.eu/web/s2-mission
+
+**4. The GLORIA dataset.** Read its paper before using it. It explains the QC flags we filter on.
+- Lehmann et al. (2023), Scientific Data 10:100: https://www.nature.com/articles/s41597-023-01973-y
+- Data: https://doi.pangaea.de/10.1594/PANGAEA.948492
+
+**5. Log-space modelling and the right metrics.** Concentrations span 4–5 orders of magnitude and errors scale with concentration. So we predict log10(value) and score with MdSA (median symmetric accuracy; 100% = typical factor-of-two error) and SSPB (signed bias).
+- Morley, Brito & Welling (2018), Space Weather 16: https://doi.org/10.1002/2017SW001669
+- Seegers et al. (2018), *Performance metrics for the assessment of satellite data products*, Optics Express 26(6): https://doi.org/10.1364/OE.26.007404
+
+**6. Spatial (grouped) validation.** Nearby stations are almost duplicates. A random split would let the model "recognise" a lake instead of learning optics. We group by ~28 km cells and hold out entire groups.
+- scikit-learn, grouped cross-validation: https://scikit-learn.org/stable/modules/cross_validation.html#group-cv
+- Roberts et al. (2017), Ecography 40: https://doi.org/10.1111/ecog.02881
+
+**7. Neural networks and ensembles.** Each target has 10 small MLPs, each trained on a bootstrap sample. Their disagreement measures uncertainty.
+- scikit-learn MLP guide: https://scikit-learn.org/stable/modules/neural_networks_supervised.html
+- Lakshminarayanan et al. (2017), *Deep Ensembles*: https://arxiv.org/abs/1612.01474
+- Pahlevan et al. (2020), Mixture Density Networks for Sentinel-2/3 chlorophyll, RSE 240. This is the state-of-the-art version of what we built: https://doi.org/10.1016/j.rse.2019.111604
+
+**8. Augmentation for the sensor gap.** Field radiometers are cleaner than satellites, so we add random gain (5%) and offset (0.0005 sr⁻¹) noise to training copies. This only approximates real atmospheric-correction error.
+- Pahlevan et al. (2021), ACIX-Aqua atmospheric correction intercomparison, RSE 258: https://doi.org/10.1016/j.rse.2021.112366
+
+**9. Conformal prediction intervals.** On held-out calibration groups we measure how wrong the model is relative to its own uncertainty, then take the 80th percentile. That makes an interval that should contain the truth about 80% of the time. Coverage is checked on the test groups.
+- Angelopoulos & Bates, *A Gentle Introduction to Conformal Prediction*: https://arxiv.org/abs/2107.07511
+
+**10. Baselines and a pre-registered rule.** A model is only worth shipping if it beats (a) predicting the training median and (b) the published formula. That rule is in code and was fixed *before* looking at results.
+- Mishra & Mishra (2012), NDCI, RSE 117: https://doi.org/10.1016/j.rse.2011.10.016
+- Nechad, Ruddick & Park (2010), TSS, RSE 114: https://doi.org/10.1016/j.rse.2009.11.022
+- Dogliotti et al. (2015), turbidity, RSE 156: https://doi.org/10.1016/j.rse.2014.09.020
+
+**11. Exporting a model without its framework.** The trained MLP is just matrices. We save them with `np.savez` and do the forward pass with `x @ W + b` and ReLU. The API then doesn't need scikit-learn, which keeps the Vercel bundle small. A test confirms that NumPy and scikit-learn produce the same predictions.
+- NumPy `savez`: https://numpy.org/doc/stable/reference/generated/numpy.savez.html
+
+### Redo it yourself
+
+```powershell
+pip install -e ".[training,dev]"
+python -m training.download          # ~60 MB GLORIA + SRFs, checksums verified
+python -m training.train             # ~10-15 min on a laptop CPU
+python -m training.model_card        # regenerate docs/models/water_quality_v1.md
+python -m unittest discover -s tests
+python -m unittest discover -s training/tests -t .
+```
+
+Then, step by step in a notebook:
+
+1. Load `GLORIA_Rrs.csv`. Plot ten high-chlorophyll and ten low-chlorophyll spectra. Find the 665 nm trough and the 705 nm peak.
+2. Load `S2A_MSI_V4.txt` with `training.srf.parse_acolite_rsr` and plot B4 and B5 over a spectrum.
+3. Convolve one spectrum by hand with NumPy and compare with `training.srf.convolve`.
+4. Compute NDCI for all spectra and scatter it against log10(Chla). This is the signal the model learns.
+5. Train one `MLPRegressor` with a *random* split and one with the grouped split. Compare MdSA. The gap you see is spatial leakage.
+
+### Exercises
+
+1. Turbidity intervals cover only ~56% of test samples, not 80%. Why might calibration and test groups differ? Hint: count how few groups have turbidity data.
+2. Rivers and estuaries score much worse than lakes. List three optical reasons.
+3. Increase `additive_noise` to 0.001 and retrain. What happens to clean-test and noisy-test MdSA? Which matters more for satellites?
+4. Add B8A as a model band. How many training spectra do you lose, and does TSS improve?
+5. Gradient boosting beats the MLP on turbidity and CDOM. Why might we still deploy one model family for everything? What would it take to deploy the better one per target?
+
+### Honest limitations
+
+- Scores are for simulated Sentinel-2 bands built from field spectra. On real satellite imagery, expect worse results, especially for CDOM (blue bands) and small or dark lakes.
+- "Deployed" means it beat the baselines, not that it is accurate enough for regulatory or drinking-water decisions.
+- Some ensemble members stopped at the 300-iteration limit before formally converging. Held-out scores already account for this, but it's a tuning opportunity.
+- Non-optical pollutants (metals, bacteria, nutrients, pesticides) can't be estimated this way at all.
+
+## 25. Phase 2 — From Satellite Scene To Per-Pixel Pollutant Maps
+
+### What happens when you analyse a lake
+
+```text
+locate   → OSM outline: Nominatim lookup by id (~1 s) or Overpass point query (20-50 s, run in parallel)
+search   → Sentinel-2 L2A catalogue (STAC), newest first, one tile per acquisition
+scene    → read 10 bands + SCL on one 20 m UTM grid; mask clouds, shadows, shore, scum, glint
+           → if under 20% of the water is clear, try the next older acquisition
+estimate → 3×3 smoothing → Rrs = ρ/π → model (5 targets) + published algorithms + FDI
+explain  → median spectrum + band sensitivity (which band moved each estimate here)
+render   → PNG layers: true colour, pixel classes, one heatmap per target, debris index
+complete → JSON result (~15 KB) + PNGs
+```
+
+Try it:
+
+```powershell
+python -m aquadoc_core.cli water --lat 17.4239 --lon 78.4738 --osm relation/2833155 --out output/hussain
+python -m aquadoc_core.cli water --lat 41.70 --lon -83.25 --out output/erie
+```
+
+### What was built
+
+| File | Role |
+| --- | --- |
+| `aquadoc_core/waterbody.py` | Nominatim search/lookup and Overpass point lookup; assembles OSM multipolygon relations (outer/inner rings) with Shapely |
+| `aquadoc_core/scene_search.py` | STAC search; drops tiles that barely cover the area; keeps one tile per acquisition |
+| `aquadoc_core/s2_reader.py` | Explicit 20 m UTM grid; parallel windowed COG reads warped onto it; reflectance scale/offset from metadata |
+| `aquadoc_core/water_masks.py` | Ordered pixel classification, including geometric cloud-shadow projection |
+| `aquadoc_core/render.py` | A ~40-line PNG encoder (zlib + CRC) and colour ramps, with no imaging library needed |
+| `aquadoc_core/band_guide.py` | What each band reveals, units, trophic scale, and what *cannot* be detected |
+| `aquadoc_core/water_pipeline.py` | Orchestrates the stages as a generator of events (streamable to the dashboard in Phase 3) |
+| `tests/test_water_pipeline.py` | 16 offline tests with fake services and synthetic scenes |
+
+### The real-world lesson from this phase: always look at the pictures
+
+The first Lake Erie run "worked": it returned plausible numbers in 38 s. The true-colour image showed scattered cumulus, but Sentinel-2's own cloud mask (SCL) had marked **zero** shadow pixels. Shadowed water just looks like dark water. The suspended-solids heatmap was visibly tracing the shadows. Fixes, in the order we discovered them:
+
+1. **Project shadows geometrically.** A cloud at height *h* casts a shadow *h·tan(solar zenith)* away from the sun. We shift the cloud mask along that direction for heights 200–4000 m (sun angles come from the STAC item).
+2. **Only call it shadow if it is dark.** Inside that zone, a pixel counts as shadow if its visible brightness is < 80% of the local mean of cloud-free water (1.2 km window). Using only pixels *outside* the zone as reference failed: with many clouds, the zone covered 69% of the window and everything got flagged.
+3. **Clouds outside the window cast shadows inside it.** We read the cheap SCL band over a wider area (up to 6 km margin) just for this.
+4. **Haze around clouds.** The cloud buffer was raised from 40 m to 100 m.
+5. **Relative, not absolute, debris thresholds.** A fixed FDI threshold flagged 27% of turbid Lake Erie as "debris". Using "4 robust standard deviations above this lake's median" brought it to ~1.6%.
+6. **Noise.** Chlorophyll depends on the small difference between B5 and B4, so per-pixel sensor noise was amplified ~10×. A 3×3 mean of valid neighbours before the model removed the speckle.
+
+### Concepts to study
+
+**Coordinate reference systems and grids.** Sentinel-2 tiles use UTM. We build one explicit grid (CRS + affine transform + width/height) and warp every band onto it. Equal array shapes are *not* equal geography.
+- Rasterio: georeferencing and affine transforms: https://rasterio.readthedocs.io/en/stable/topics/georeferencing.html
+- Rasterio: virtual warping (`WarpedVRT`): https://rasterio.readthedocs.io/en/stable/topics/virtual-warping.html
+- UTM explained: https://www.usgs.gov/faqs/how-are-utm-coordinates-measured-usgs-topographic-maps
+
+**Cloud Optimized GeoTIFFs and STAC.** HTTP range requests let us read a 5 km window from a 110 km tile without downloading it.
+- COG intro: https://cogeo.org/
+- STAC spec and the item-search API: https://stacspec.org/en/tutorials/intro-to-stac/
+- Planetary Computer Sentinel-2 L2A: https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a
+
+**Sentinel-2 Level-2A products.** Reflectance scaling and the processing-baseline-04.00 offset (−0.1), and the Scene Classification Layer classes.
+- Sentinel-2 L2A algorithm / SCL: https://sentiwiki.copernicus.eu/web/s2-processing
+- Processing baseline 04.00 offset: https://sentiwiki.copernicus.eu/web/s2-processing#S2Processing-L2AProcessingBaseline
+
+**Cloud and shadow masking.** The geometry and darkness ideas above come from Fmask.
+- Zhu & Woodcock (2012), *Object-based cloud and cloud shadow detection in Landsat imagery* (Fmask), RSE 118: https://doi.org/10.1016/j.rse.2011.10.028
+- Skakun et al. (2022), *Cloud mask intercomparison eXercise (CMIX)* for Sentinel-2, RSE 274: https://doi.org/10.1016/j.rse.2022.112990
+
+**Water detection and adjacency.** MNDWI (green vs SWIR) separates water from land. Pixels near shore are contaminated by bright land light ("adjacency effect"), hence the 40 m inward shoreline buffer.
+- Xu (2006), MNDWI, Int. J. Remote Sens. 27(14): https://doi.org/10.1080/01431160600589179
+- Adjacency effects over inland water: Vanhellemont & Ruddick (2018), RSE 216 (ACOLITE): https://doi.org/10.1016/j.rse.2018.07.015
+
+**Floating material.** FDI compares NIR with a baseline interpolated between red-edge and SWIR. Floating things are NIR-bright; water is not.
+- Biermann et al. (2020), *Finding Plastic Patches in Coastal Waters using Optical Satellite Data*, Sci. Rep. 10: https://doi.org/10.1038/s41598-020-62298-z
+
+**Robust statistics.** The median and the MAD (median absolute deviation, ×1.4826 ≈ standard deviation for normal data) aren't fooled by the outliers we are trying to find.
+- NIST handbook, measures of scale: https://www.itl.nist.gov/div898/handbook/eda/section3/eda356.htm
+
+**Explaining a model locally (sensitivity / elasticity).** We nudge each band ±10% at this lake's median spectrum and see how much each estimate moves. That's a simple local explanation, related to gradients and SHAP.
+- Molnar, *Interpretable Machine Learning* (free book): https://christophm.github.io/interpretable-ml-book/
+
+**OpenStreetMap data model.** Ways vs relations, multipolygons with outer/inner roles, and ODbL attribution.
+- OSM multipolygons: https://wiki.openstreetmap.org/wiki/Relation:multipolygon
+- Overpass QL: https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL
+- Nominatim API and usage policy: https://nominatim.org/release-docs/latest/api/Overview/ and https://operations.osmfoundation.org/policies/nominatim/
+
+**Python concurrency.** A `ThreadPoolExecutor` overlaps slow network calls (Overpass, 10 COG reads). GDAL releases the GIL during I/O, so threads help.
+- `concurrent.futures`: https://docs.python.org/3/library/concurrent.futures.html
+
+**Generators as progress streams.** `run_water_analysis` *yields* events. The CLI prints them now; in Phase 3 the API will stream them to the browser with Server-Sent Events.
+- Python generators: https://docs.python.org/3/howto/functional.html#generators
+
+**The PNG format.** Signature, chunks, CRC32, zlib-compressed scanlines with a filter byte per row.
+- PNG specification: https://www.w3.org/TR/png-3/
+
+### Redo it yourself
+
+1. Search a scene for a lake with `aquadoc_core.scene_search.search_scenes` and print the candidates.
+2. Build a grid with `make_grid`, read `B04` and `SCL` with `CogBandReader`, and save a true-colour PNG with `render.true_color`. Open it and look for clouds.
+3. Compute `project_shadow_zone` for the cloud mask and overlay it. Does the zone land on the dark patches? Try azimuth ±20° to see how sensitive it is.
+4. Compare `counts` from `classify_pixels` with and without sun angles.
+5. Run the full CLI on a lake you know. Then pass `--start/--end` for a summer month and compare chlorophyll.
+
+### Exercises
+
+1. Why is 20 m, not 10 m, the analysis resolution? Which bands would need upsampling at 10 m, and what would that imply?
+2. Hussain Sagar had 0% of pixels in the turbidity training domain. Look at its spectrum in `result.json`. Which band is unusual compared with Lake Erie? What could cause it (think: small urban lake, adjacency)?
+3. The shadow test uses a fixed 0.8 darkness ratio. Find a scene where it fails, either missing shadows over very dark water or flagging natural plumes. Propose a better test.
+4. Why does the pipeline try *older* scenes rather than averaging several dates?
+5. `debris_like_pct` uses a 4×MAD threshold. What false positives remain (hint: boats, bridges, wakes, small islands)?
+
+### Honest limitations
+
+- Sen2Cor atmospheric correction is land-oriented. Over water, ACOLITE or POLYMER would be better but are too heavy for a serverless function. This is the largest error source left.
+- Shadow detection is heuristic; thin cirrus and haze are only partly caught.
+- Estimates for small urban lakes are often out of the training domain. The result flags this per target (`in_training_domain_pct`, `confidence`).
+- Confidence is at most "medium". "High" would require validating against satellite–in-situ match-ups, which we chose not to build.
+
+## 26. Reducing The Limitations — Satellite Match-Up Validation
+
+### Why
+
+After Phase 2 the honest answer to "how accurate is this on real satellite images?" was "we don't know". The model was tested on *simulated* Sentinel-2 bands made from field spectra. Real images pass through Sen2Cor atmospheric correction, which was built for land. This section measures that gap and shrinks it.
+
+### Method: satellite match-ups
+
+A *match-up* is a satellite pixel and a field measurement taken at the same place at nearly the same time. GLORIA has 1,365 samples from 2017 onward, inside the Sentinel-2 era. For each one, `training/matchups.py`:
+
+1. searches Sentinel-2 L2A scenes within ±24 h,
+2. reads a 7×7 pixel (140 m) box centred on the sample,
+3. rejects it if any pixel is cloud or shadow, if the centre 3×3 is not water, if SWIR shows glint or land, or if the centre is not homogeneous (coefficient of variation > 0.2),
+4. keeps the median of the centre 3×3.
+
+Result: **506 usable match-ups at 107 sites.** The rest were lost to no overpass (597), clouds (179) and the quality checks.
+
+`training/validate_satellite.py` then:
+
+- compares satellite reflectance with in-situ reflectance band by band;
+- fits a **residual correction** per band: `Rrs = a + g·Rrs_L2A + k·Rrs_L2A(B11)`, using a robust Huber regression. Each site is scored with coefficients fitted *without* that site;
+- **retrains the model without any match-up site**, so the accuracy numbers are genuinely out-of-sample;
+- recalibrates the 80% intervals on *satellite* residuals (conformal prediction, coverage checked by grouped cross-validation);
+- picks, per target, raw or corrected input, whichever validated better.
+
+### What we learned
+
+| | Chlorophyll-a | Suspended solids | CDOM | Turbidity | Secchi |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Model, field-spectra input (best case) | 53% | 60% | 97% | 53% | 35% |
+| Model, raw Sentinel-2 | 94% | 103% | 152% | 67% | **43%** |
+| Model, corrected Sentinel-2 | **78%** | **76%** | **115%** | **58%** | 73% |
+| Best published algorithm, corrected | 103% | 87% | – | 56% | – |
+
+(Median symmetric accuracy; 100% = typical factor-of-two error.)
+
+- Sen2Cor leaves a **positive offset of ~0.002–0.004 sr⁻¹ over water in every band**, which is large relative to dark-water reflectance (~0.002–0.01). The fitted correction is essentially "subtract ~0.8 × the SWIR signal", because water should be black in SWIR, so leftover SWIR measures the residual aerosol, adjacency and glint error. The offset falls ~10× after correction.
+- The correction helps four targets and *hurts* Secchi depth. That's why the choice is made per target, not globally.
+- CDOM stays worse than a factor of two, so the dashboard always marks it **low** confidence. Blue bands carry the largest atmospheric error.
+- Intervals recalibrated on satellite data cover 76–80% of unseen sites, close to the 80% target. Before, turbidity covered only 56%.
+- Hussain Sagar is the practical example. Raw reflectance put 72% of pixels *outside* the training domain. After correction 100% were inside, and the chlorophyll estimate moved from 17 to 81 µg/L, consistent with the lake's documented hypereutrophic state.
+
+### Concepts to study
+
+- **Match-up validation protocol** (window size, homogeneity, time window): Bailey & Werdell (2006), *A multi-sensor approach for the on-orbit validation of ocean color satellite data products*, RSE 102: https://doi.org/10.1016/j.rse.2006.01.015
+- **Atmospheric correction over inland water and its typical errors**: Pahlevan et al. (2021), ACIX-Aqua, RSE 258: https://doi.org/10.1016/j.rse.2021.112366
+- **Why SWIR helps**: water absorbs SWIR almost completely, so SWIR-based corrections (e.g. Wang & Shi 2007, *The NIR-SWIR combined atmospheric correction approach for MODIS ocean color data processing*, Optics Express 15): https://doi.org/10.1364/OE.15.015722
+- **Robust regression (Huber loss)**: scikit-learn guide: https://scikit-learn.org/stable/modules/linear_model.html#huber-regression
+- **Out-of-sample evaluation when correcting data**: fit the correction inside cross-validation folds, never on the points you score.
+- **Conformal prediction under distribution shift**: recalibrating on data from the deployment domain: Angelopoulos & Bates (see section 24).
+
+### Redo it yourself
+
+```powershell
+python -m training.matchups                         # ~30-60 min, resumable
+python -m training.validate_satellite               # report -> docs/models/satellite_validation.json
+python -m training.validate_satellite --write-model # also update aquadoc_core/models/water_quality_v1.json
+python -m training.model_card
+```
+
+### Exercises
+
+1. Restrict match-ups to ±3 h (`--max-hours 3`). How many remain, and do errors fall? What does that say about how fast lake water changes?
+2. Plot satellite vs in-situ B2 reflectance before and after correction. Where does the correction fail?
+3. Why might the correction hurt Secchi depth while helping chlorophyll? (Hint: look at which bands each target's sensitivity relies on.)
+4. 440 of 506 match-ups are lakes. Design a check to warn users when an analysed water body is a type the validation barely covers.
+
+## 27. Phase 3 — The HTTP API
+
+### What was built
+
+| File | Role |
+| --- | --- |
+| `aquadoc_core/api.py` | FastAPI app under `/api`: guide, search, streaming analyses, results, layers |
+| `aquadoc_core/store.py` | Result + PNG storage: SQLite locally, PostgreSQL (Neon) when `DATABASE_URL` is set |
+| `tests/test_api.py` | Streaming, caching, layer serving, validation errors, rate limit, all offline |
+
+Key design decisions:
+
+- **Server-Sent Events** for progress. `POST /api/analyses/stream` returns `text/event-stream`: one `stage` event per pipeline step, then `complete` (or `error`). SSE is plain HTTP, so it works through Vercel's functions and needs no WebSocket server. The pipeline runs in a worker thread, and the response sends a `: keep-alive` comment every 10 s so proxies don't close idle connections.
+- **Stateless functions, durable store.** Serverless instances share no memory and disappear. Results, images and the cache live in the database, and nothing important is kept in process memory.
+- **Images in the database**, served with `Cache-Control: immutable`. Layers never change after creation, so the CDN and browsers cache them forever. That avoids a separate object store.
+- **Request cache**: same water body or point plus same dates (including the default "last 60 days ending today") within 24 h returns the stored result in ~0.1 s instead of ~10 s of satellite processing.
+- **Validation at the edge of the system**: Pydantic rejects bad coordinates, future dates and malformed OSM references before any work starts.
+- **Honest rate limiting**: the in-memory limiter is per instance and only a speed bump. Real limits belong in the Vercel Firewall.
+
+Try it:
+
+```powershell
+python -m uvicorn aquadoc_core.api:app --reload
+curl.exe "http://127.0.0.1:8000/api/waterbodies/search?q=Hussain%20Sagar"
+curl.exe -N -X POST http://127.0.0.1:8000/api/analyses/stream -H "Content-Type: application/json" -d "{\"latitude\":17.4239,\"longitude\":78.4738,\"osm_ref\":\"relation/2833155\"}"
+```
+
+Then open http://127.0.0.1:8000/api/docs.
+
+### Concepts to study
+
+- **FastAPI**: path operations, Pydantic models, dependency injection, `StreamingResponse`: https://fastapi.tiangolo.com/tutorial/ and https://fastapi.tiangolo.com/advanced/custom-response/#streamingresponse
+- **Server-Sent Events** format (`event:`, `data:`, blank line; comments start with `:`): https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+- **HTTP caching** (`Cache-Control`, `immutable`, CDN caching): https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching
+- **CORS**, and why the dashboard on another origin needs it in development: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+- **Serverless constraints**: stateless instances, duration and payload limits: https://vercel.com/docs/functions/limitations and https://vercel.com/docs/fluid-compute
+- **FastAPI on Vercel**: https://vercel.com/docs/frameworks/backend/fastapi
+- **PostgreSQL basics and psycopg 3**: https://www.postgresql.org/docs/current/tutorial.html and https://www.psycopg.org/psycopg3/docs/basic/usage.html
+- **Rate limiting** (sliding window) and why it belongs at the edge: https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting
+- **Testing APIs with `TestClient`** and fakes instead of the network: https://fastapi.tiangolo.com/tutorial/testing/
+
+### Exercises
+
+1. Write a 20-line Python client that reads the SSE stream with `requests` (`stream=True`, `iter_lines`) and prints each stage.
+2. Why are cached results keyed by pipeline *and* model version? What would go wrong without the model version?
+3. The rate limiter is in memory. Describe two ways a determined client could bypass it on Vercel, and how the Firewall avoids both.
+4. Run two identical requests at the same moment. Both miss the cache and do the work twice. How would you prevent that?

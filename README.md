@@ -23,10 +23,11 @@ Satellites see only **optically active** constituents. AquaDoc estimates chlorop
 | Component | State |
 | --- | --- |
 | Sentinel-2 STAC search and COG band reads (`aquadoc_core/ingestion.py`) | Working |
-| Aligned 20 m grid, SCL cloud masking, radiometric scaling (`aquadoc_core/imagery_quality.py`) | Implemented, not yet wired into the API |
+| Water-body outline (OpenStreetMap), 20 m aligned reads, cloud/shadow/shore/scum masking (`waterbody.py`, `s2_reader.py`, `water_masks.py`) | Working |
+| Per-pixel estimates, band sensitivity, PNG map layers, staged events (`water_pipeline.py`) | Working via `python -m aquadoc_core.cli water`; API in Phase 3 |
 | Spectral indices and heuristic screening (`spectral_indices.py`, `risk.py`, `pipeline.py`) | Working |
-| FastAPI service (`aquadoc_core/api.py`) | Working, local SQLite persistence |
-| Model trained on public spectral data | Planned |
+| FastAPI service with streaming analyses, caching, layer serving (`api.py`, `store.py`) | Working; SQLite locally, PostgreSQL via `DATABASE_URL` |
+| Water-quality model trained on GLORIA (`aquadoc_core/wq_model.py`, [model card](docs/models/water_quality_v1.md)) | Trained; used by the water pipeline |
 | Next.js dashboard and Vercel deployment | Planned |
 
 ## Repository structure
@@ -61,12 +62,16 @@ Run the tests:
 ```powershell
 python -m unittest discover -s tests
 python -m unittest discover -s research/tests -t .
+python -m unittest discover -s training/tests -t .
 ```
 
-Analyze a coordinate from the command line:
+Estimate water quality for a water body. It prints each stage live, then writes `result.json` and PNG map layers:
 
 ```powershell
-python -m aquadoc_core.cli analyze --lat 41.68 --lon -83.30 --start 2026-08-01 --end 2026-09-01
+# By OpenStreetMap id (fast outline lookup), e.g. Hussain Sagar, Hyderabad
+python -m aquadoc_core.cli water --lat 17.4239 --lon 78.4738 --osm relation/2833155 --out output/hussain
+# By coordinate only (outline found via Overpass in parallel; slower)
+python -m aquadoc_core.cli water --lat 41.70 --lon -83.25 --out output/erie
 ```
 
 Start the API and open the interactive docs at http://127.0.0.1:8000/docs:
@@ -77,12 +82,22 @@ python -m uvicorn aquadoc_core.api:app --reload
 
 ## API
 
+Start it with `python -m uvicorn aquadoc_core.api:app --reload`. Interactive docs are at http://127.0.0.1:8000/api/docs.
+
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Health check |
-| `POST` | `/analyses` | Fetch, analyze and persist a coordinate request |
-| `GET` | `/analyses` | List saved runs |
-| `GET` | `/analyses/{run_id}` | Retrieve one run |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/guide` | Band explanations, parameters, non-detectable pollutants, model and satellite-validation metrics |
+| `GET` | `/api/waterbodies/search?q=` | Find water bodies by name (OpenStreetMap); returns `osm` references |
+| `POST` | `/api/analyses/stream` | Run an analysis and stream each stage as Server-Sent Events; the final `complete` event has the result |
+| `POST` | `/api/analyses` | Same, returning only the final result |
+| `GET` | `/api/analyses?limit=` | Recent analyses |
+| `GET` | `/api/analyses/{id}` | A stored result |
+| `GET` | `/api/analyses/{id}/layers/{name}.png` | Map layer image (immutable, cacheable) |
+
+Request body: `{"latitude": 17.4239, "longitude": 78.4738, "osm_ref": "relation/2833155"}`, plus optional `start_date`, `end_date` and `max_size_m`. Identical requests within 24 hours return the stored result.
+
+Storage is SQLite locally and PostgreSQL when `DATABASE_URL` is set. CORS origins come from `AQUADOC_CORS_ORIGINS` (default `http://localhost:3000`).
 
 ## Dependencies
 
@@ -91,8 +106,10 @@ python -m uvicorn aquadoc_core.api:app --reload
 ## Limitations
 
 - Research and educational tool, not a regulatory or drinking-water safety system.
-- Sentinel-2 L2A atmospheric correction is designed for land and is imperfect over water. Estimates carry real uncertainty.
-- The current risk score is a transparent heuristic. Its labels will be replaced with screening levels once the trained model is in place.
+- Accuracy is measured on 506 real Sentinel-2 match-ups at 107 sites the model never saw. The typical error is about 58% for turbidity, 76-78% for chlorophyll-a and suspended solids, and 43% for Secchi depth; CDOM exceeds 100% and is always marked low confidence. See the [model card](docs/models/water_quality_v1.md).
+- Sen2Cor atmospheric correction is designed for land. A residual correction learned from those match-ups removes most of its offset over water, but not all of it.
+- Satellite validation is dominated by lakes; accuracy for rivers and estuaries is largely unknown.
+- Non-optical pollutants (metals, bacteria, nutrients, pesticides, toxins) cannot be estimated from imagery.
 
 ## License
 
