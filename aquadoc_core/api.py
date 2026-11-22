@@ -184,6 +184,8 @@ def create_app(
             raise HTTPException(400, str(exc)) from exc
         key = request_key(pipeline_request, get_model().metadata.get("model_version"))
         cached = get_store().find_recent(key, timedelta(hours=CACHE_HOURS))
+        if cached and pipeline_request.osm_ref and not cached.get("water_body"):
+            cached = None  # the outline lookup failed on that run (busy OSM servers): do not reuse a degraded result
         return pipeline_request, key, ({**cached, "cached": True} if cached else None)
 
     @app.exception_handler(Exception)

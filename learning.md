@@ -2142,3 +2142,15 @@ Saved and cached results **replay** their stored timeline, so a shared link anim
 6. **A project's first Vercel deployment goes straight to production.** Later ones are previews unless you pass `--prod`. Previews are behind Vercel login; `vercel curl` reaches them.
 
 Exercise: write a test that runs `_read_with_retry` with a fake reader that fails once, and check that it clears the token cache and succeeds on the second attempt.
+
+### Lakes near you
+
+The Analyse page has a **Lakes near you** section: the browser shares your location (rounded to ~1 km before it leaves the page), `GET /api/waterbodies/nearby` lists named lakes and reservoirs within 10–50 km, and each lake shows its saved result or a one-click Analyse button. A radar figure places lakes by their real bearing and distance.
+
+- **Nominatim matches exact tags.** `[natural=water]` does not return a lake tagged `water=lake`, so Hussain Sagar was missing until `[water=lake]` and `[water=reservoir]` were queried too.
+- **Result caps hide big lakes.** Keeping only the nearest 24 dropped a 7.7 km reservoir 19 km away; the list now combines the nearest 16 with the 8 largest of the rest.
+- **Unnamed lakes are invisible to name search** (the SRM campus lake is mapped without a name). Its outline is saved in `aquadoc_core/known_outlines.json`; other unnamed lakes fall back to Overpass by id, then to the main OpenStreetMap API.
+- **Don't cache degraded results.** A run whose outline lookup failed (busy servers) is not reused from the cache.
+- **Geolocation needs a secure origin** (https or localhost) and can be denied: the UI explains the alternatives instead of failing silently.
+
+Exercise: add a "compare nearby lakes" view that plots chlorophyll-a for every analysed lake near you on one log-scale strip.

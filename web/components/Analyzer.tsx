@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import NearbyLakes from "@/components/NearbyLakes";
 import LocationChooser, { type DateWindow, type Recent, type Target } from "@/components/LocationChooser";
 import Pipeline from "@/components/Pipeline";
 import ResultPanels from "@/components/ResultPanels";
@@ -131,6 +132,8 @@ export default function Analyzer() {
         <LocationChooser target={target} onTarget={(t) => setTarget(t)} onWindow={setDates}
           recent={recent} onOpenRecent={openRecent} onRun={run} running={running} />
       </section>
+
+      <NearbyLakes onAnalyse={(t) => run(t)} onOpen={openRecent} running={running} />
 
       <div ref={pipelineRef} className="scroll-mt-4 border-b border-hairline py-12">
         {started ? (

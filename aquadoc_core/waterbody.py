@@ -12,11 +12,13 @@ low-volume, and cache results. See https://operations.osmfoundation.org/policies
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import time
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Callable
 
 import requests
@@ -34,6 +36,10 @@ NOMINATIM_LOOKUP_URL = "https://nominatim.openstreetmap.org/lookup"
 WATER_TYPES = {"water", "lake", "reservoir", "river", "riverbank", "bay", "lagoon", "pond", "basin", "strait",
                "wetland", "canal", "oxbow"}
 USER_AGENT = "AquaDoc/0.2 (satellite water-quality demo)"
+
+# Outlines saved in the repository for featured lakes that OpenStreetMap leaves unnamed: Nominatim does
+# not index them and Overpass is often overloaded, so the dashboard should not depend on either.
+KNOWN_OUTLINES_PATH = Path(__file__).with_name("known_outlines.json")
 
 _WATER_FILTERS = ('["natural"="water"]', '["waterway"="riverbank"]', '["landuse"="reservoir"]', '["landuse"="basin"]')
 
@@ -156,6 +162,32 @@ def find_water_body_cached(latitude: float, longitude: float) -> WaterBody | Non
 _OSM_REF = re.compile(r"^(node|way|relation)/(\d+)$")
 
 
+@lru_cache(maxsize=1)
+def _known_outlines() -> dict:
+    try:
+        return json.loads(KNOWN_OUTLINES_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+
+
+def _osm_api_way(osm_id: int, latitude: float, longitude: float,
+                 get: Callable[..., requests.Response] = requests.get) -> WaterBody | None:
+    """A single closed way from the main OpenStreetMap API (reliable for one-off lookups by id)."""
+    response = get(f"https://api.openstreetmap.org/api/0.6/way/{osm_id}/full.json",
+                   headers={"User-Agent": USER_AGENT}, timeout=30)
+    response.raise_for_status()
+    elements = response.json()["elements"]
+    nodes = {e["id"]: (e["lon"], e["lat"]) for e in elements if e["type"] == "node"}
+    way = next(e for e in elements if e["type"] == "way")
+    polygon = _way_polygon({"geometry": [{"lon": nodes[n][0], "lat": nodes[n][1]} for n in way["nodes"]]})
+    if polygon is None:
+        return None
+    tags = way.get("tags", {})
+    return WaterBody(name=tags.get("name:en") or tags.get("name"), osm_type="way", osm_id=osm_id,
+                     water_type=tags.get("water") or tags.get("natural"), geometry=polygon,
+                     contains_point=polygon.covers(Point(longitude, latitude)))
+
+
 def _overpass_by_id(osm_type: str, osm_id: int, latitude: float, longitude: float,
                     post: Callable[..., requests.Response] = requests.post, timeout_s: float = 30) -> WaterBody | None:
     """One OSM way or relation with its geometry. Fetching by id is a light query even on busy servers."""
@@ -171,6 +203,8 @@ def _overpass_by_id(osm_type: str, osm_id: int, latitude: float, longitude: floa
             return bodies[0] if bodies else None
         except (requests.RequestException, ValueError) as exc:
             last_error = exc
+    if osm_type == "way":  # every Overpass instance failed: one way is cheap to fetch from the main API
+        return _osm_api_way(osm_id, latitude, longitude)
     raise RuntimeError(f"All Overpass instances failed: {last_error}")
 
 
@@ -182,6 +216,11 @@ def lookup_water_body(osm_ref: str, latitude: float, longitude: float,
     if not match:
         raise ValueError("osm_ref must look like 'relation/123' or 'way/123'")
     osm_type, osm_id = match.groups()
+    known = _known_outlines().get(osm_ref)
+    if known:
+        geometry = shape(known["geometry"])
+        return WaterBody(name=known.get("name"), osm_type=osm_type, osm_id=int(osm_id), water_type=known.get("water_type"),
+                         geometry=geometry, contains_point=geometry.covers(Point(longitude, latitude)))
     response = get(NOMINATIM_LOOKUP_URL, params={"osm_ids": f"{osm_type[0].upper()}{osm_id}", "format": "jsonv2",
                                                  "polygon_geojson": 1, "polygon_threshold": 0.00005},
                    headers={"User-Agent": USER_AGENT}, timeout=30)
