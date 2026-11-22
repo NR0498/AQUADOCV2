@@ -2154,3 +2154,13 @@ The Analyse page has a **Lakes near you** section: the browser shares your locat
 - **Geolocation needs a secure origin** (https or localhost) and can be denied: the UI explains the alternatives instead of failing silently.
 
 Exercise: add a "compare nearby lakes" view that plots chlorophyll-a for every analysed lake near you on one log-scale strip.
+
+### The real production bug: a missing system library
+
+The "ImportError" that only appeared in production was finally named once `/api/health` reported import errors: `libexpat.so.1: cannot open shared object file`. The GDAL library inside the rasterio wheel expects the operating system to provide expat (an XML parser), and some Vercel production instances do not. Preview instances happened to have it, which is why every preview test passed.
+
+Lessons:
+1. **Make the failure say what failed.** Two earlier "fixes" (preloading, retries) were plausible but wrong; one line of real error text found the cause.
+2. **Wheels are not always self-contained.** `manylinux` wheels may rely on a small set of system libraries. Check what a bundled `.so` needs (its `NEEDED` entries) when a library works locally but not on a server.
+3. **Match glibc.** A shared library built on a newer distribution needs a newer glibc; Debian 12's expat needs 2.36, Vercel has 2.34, so Debian 11's build is vendored.
+4. **Verify what you vendor.** The package checksum was compared with Debian's index; provenance and licence sit next to the file (`aquadoc_core/vendor/README.md`).

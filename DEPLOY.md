@@ -67,9 +67,32 @@ Pushes to any other branch create preview deployments.
 - **Roll back:** `vercel rollback`, or promote an earlier deployment from the dashboard.
 - **Database:** check the connection with `vercel env ls`, where `DATABASE_URL` should be listed for Production and Preview.
 
+## Removing old deployments
+
+Vercel's CLI requires a person to confirm each deletion with `--confirm-name`. Keep the current production deployment (check it with `vercel inspect aquadoc-ivory.vercel.app`) and remove the others:
+
+```powershell
+vercel ls aquadoc
+vercel remove <deployment-url> --confirm-name <deployment-url>
+```
+
+Or delete them in the dashboard: `aquadoc` → **Deployments** → select → **Delete**.
+
+## The `libexpat` fix (why production analyses used to fail)
+
+Some Vercel production instances lack the system library `libexpat.so.1`, which GDAL inside the rasterio wheel needs. Every analysis then failed with `ImportError`. `aquadoc_core/native.py` now loads a vetted copy from `aquadoc_core/vendor/` when the system has none; provenance and checksums are in `aquadoc_core/vendor/README.md`.
+
+`/api/health` shows the state:
+
+```json
+{"status": "ok", "pipeline_version": "water-pipeline-v4", "geospatial": "ok", "libexpat": "vendored"}
+```
+
+`"libexpat"` is `"system"` or `"vendored"` when all is well. If `"geospatial"` lists errors instead of `"ok"`, the analysis libraries failed to load, and the message says why.
+
 ## Good to know
 
-- **Production runs the last deployed build:** until you deploy, https://aquadoc-ivory.vercel.app runs an old build where analyses fail.
+- **Production runs the last deployed build:** local changes reach https://aquadoc-ivory.vercel.app only when you deploy (Option A) or push to `main` (Option B).
 - **First requests are slower:** the first analysis after a quiet period takes a few extra seconds while the server starts.
 - **Rate limit:** 8 analyses per visitor per 10 minutes on each server instance. Change it in `RATE_LIMIT` in `aquadoc_core/api.py` if you need more.
 - **Don't commit `.env.local`:** `vercel link` created it, and it holds the database credentials. It is already covered by `.gitignore`.

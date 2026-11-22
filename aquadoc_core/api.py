@@ -35,7 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import band_guide
+from . import LIBEXPAT, band_guide
 from .store import AnalysisStore, store_from_env
 from .water_pipeline import PIPELINE_VERSION, PipelineEvent, Services, WaterAnalysisRequest, run_water_analysis
 from .waterbody import nearby_water_bodies, search_water_bodies
@@ -50,14 +50,18 @@ _PRELOAD = ("rasterio", "rasterio.enums", "rasterio.features", "rasterio.transfo
             "rasterio.warp", "rasterio.windows", "shapely.geometry", "planetary_computer", "pystac")
 
 
+_PRELOAD_ERRORS: dict[str, str] = {}  # reported by /api/health so a broken deployment is diagnosable
+
+
 def _preload_geospatial() -> None:
     import importlib
 
     for name in _PRELOAD:
         try:
             importlib.import_module(name)
-        except Exception:  # surfaced again, with context, when an analysis needs the module
+        except Exception as exc:  # surfaced again, with context, when an analysis needs the module
             log.exception("Could not preload %s", name)
+            _PRELOAD_ERRORS[name] = f"{type(exc).__name__}: {str(exc)[:200]}"
 
 
 _preload_geospatial()
@@ -194,7 +198,8 @@ def create_app(
 
     @app.get("/api/health", tags=["system"])
     def health() -> dict:
-        return {"status": "ok", "api_version": API_VERSION, "pipeline_version": PIPELINE_VERSION}
+        return {"status": "ok", "api_version": API_VERSION, "pipeline_version": PIPELINE_VERSION,
+                "geospatial": "ok" if not _PRELOAD_ERRORS else _PRELOAD_ERRORS, "libexpat": LIBEXPAT}
 
     @app.get("/api/guide", tags=["reference"])
     def guide(response: Response) -> dict:
@@ -307,8 +312,8 @@ def create_app(
                     return
                 if isinstance(item, Exception):
                     detail = type(item).__name__
-                    if isinstance(item, ImportError):  # a missing module name is safe and makes deploy issues diagnosable
-                        detail += f": {item.name or str(item)[:120]}"
+                    if isinstance(item, ImportError):  # module names and paths are safe and make deploys diagnosable
+                        detail += f": {str(item)[:200]}"
                     yield _sse("error", {"message": f"Analysis failed unexpectedly ({detail})"})
                     continue
                 event: PipelineEvent = item

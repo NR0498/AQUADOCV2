@@ -1,5 +1,13 @@
 """Core backend for AquaDoc multispectral water-quality analysis."""
 
+from .native import ensure_libexpat
+
+# Must run before anything imports rasterio (see native.py). Failure is reported by /api/health.
+try:
+    LIBEXPAT = ensure_libexpat()
+except OSError as _exc:  # pragma: no cover - only on a Linux host with neither copy usable
+    LIBEXPAT = f"unavailable: {_exc}"
+
 from .pipeline import analyze_multispectral_scene
 from .risk import estimate_water_risk
 from .schemas import AnalysisResult, BandStatistics, MultispectralScene
