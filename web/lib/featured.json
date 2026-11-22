@@ -1,0 +1,407 @@
+[
+  {
+    "group": "India",
+    "name": "Hussain Sagar",
+    "country": "Telangana",
+    "latitude": 17.4239,
+    "longitude": 78.4738,
+    "osm_ref": "relation/2833155",
+    "why": "Urban lake receiving sewage inflows; regularly hypereutrophic"
+  },
+  {
+    "group": "India",
+    "name": "Dal Lake",
+    "country": "Jammu & Kashmir",
+    "latitude": 34.112,
+    "longitude": 74.865,
+    "osm_ref": "relation/2310480",
+    "why": "Weed growth and nutrient loading from houseboats and settlements"
+  },
+  {
+    "group": "India",
+    "name": "Chilika Lake",
+    "country": "Odisha",
+    "latitude": 19.7,
+    "longitude": 85.35,
+    "osm_ref": "relation/1917079",
+    "why": "Asia's largest brackish lagoon; sediment-laden river inflows"
+  },
+  {
+    "group": "India",
+    "name": "Vembanad Lake",
+    "country": "Kerala",
+    "latitude": 9.62,
+    "longitude": 76.38,
+    "osm_ref": "relation/20298114",
+    "why": "Long backwater lake with water-hyacinth blooms and turbid inflows"
+  },
+  {
+    "group": "India",
+    "name": "Loktak Lake",
+    "country": "Manipur",
+    "latitude": 24.53,
+    "longitude": 93.8,
+    "osm_ref": "relation/9207024",
+    "why": "Floating vegetation islands (phumdis) cover much of the surface"
+  },
+  {
+    "group": "India",
+    "name": "Bellandur Lake",
+    "country": "Karnataka",
+    "latitude": 12.936,
+    "longitude": 77.664,
+    "osm_ref": "relation/19751547",
+    "why": "Heavily polluted urban lake known for foam and weed mats"
+  },
+  {
+    "group": "India",
+    "name": "Wular Lake",
+    "country": "Jammu & Kashmir",
+    "latitude": 34.3503,
+    "longitude": 74.542,
+    "osm_ref": "way/62108733",
+    "why": "Large shallow freshwater lake with heavy siltation"
+  },
+  {
+    "group": "India",
+    "name": "Upper Lake (Bhojtal)",
+    "country": "Madhya Pradesh",
+    "latitude": 23.245,
+    "longitude": 77.36,
+    "osm_ref": "relation/5414768",
+    "why": "City drinking-water reservoir under urban pressure"
+  },
+  {
+    "group": "India",
+    "name": "Pulicat Lake",
+    "country": "Andhra Pradesh / Tamil Nadu",
+    "latitude": 13.55,
+    "longitude": 80.17,
+    "osm_ref": "relation/1624070",
+    "why": "Shallow coastal lagoon with variable turbidity"
+  },
+  {
+    "group": "India",
+    "name": "Sela Lake",
+    "country": "Arunachal Pradesh",
+    "latitude": 27.5093,
+    "longitude": 92.1015,
+    "osm_ref": "way/298606973",
+    "why": "High-altitude lake near Sela Pass; often frozen in winter"
+  },
+  {
+    "group": "India",
+    "name": "Deepor Beel",
+    "country": "Assam",
+    "latitude": 26.12,
+    "longitude": 91.66,
+    "osm_ref": "relation/9630968",
+    "why": "Ramsar wetland beside Guwahati receiving city runoff"
+  },
+  {
+    "group": "India",
+    "name": "Carambolim Lake",
+    "country": "Goa",
+    "latitude": 15.4905,
+    "longitude": 73.9275,
+    "osm_ref": "way/200704302",
+    "why": "Small bird-rich lake covered in floating vegetation"
+  },
+  {
+    "group": "India",
+    "name": "Kankaria Lake",
+    "country": "Gujarat",
+    "latitude": 23.0063,
+    "longitude": 72.5995,
+    "osm_ref": "way/29340465",
+    "why": "Urban lake in Ahmedabad, recharged with river water"
+  },
+  {
+    "group": "India",
+    "name": "Nal Sarovar",
+    "country": "Gujarat",
+    "latitude": 22.8,
+    "longitude": 72.03,
+    "osm_ref": "relation/1583399",
+    "why": "Shallow, turbid bird sanctuary lake with many islets"
+  },
+  {
+    "group": "India",
+    "name": "Damdama Lake",
+    "country": "Haryana",
+    "latitude": 28.3,
+    "longitude": 77.13,
+    "osm_ref": "way/143476055",
+    "why": "Rain-fed reservoir in the Aravalli hills near Gurugram"
+  },
+  {
+    "group": "India",
+    "name": "Gobind Sagar",
+    "country": "Himachal Pradesh",
+    "latitude": 31.4192,
+    "longitude": 76.4725,
+    "osm_ref": "relation/1601368",
+    "why": "Bhakra Dam reservoir; sediment from the Sutlej"
+  },
+  {
+    "group": "India",
+    "name": "Lonar Lake",
+    "country": "Maharashtra",
+    "latitude": 19.977,
+    "longitude": 76.508,
+    "osm_ref": "way/703434039",
+    "why": "Soda crater lake so dense with algae that it reads as surface scum, not open water"
+  },
+  {
+    "group": "India",
+    "name": "Powai Lake",
+    "country": "Maharashtra",
+    "latitude": 19.127,
+    "longitude": 72.905,
+    "osm_ref": "relation/8546709",
+    "why": "Urban Mumbai lake with sewage inflow and water hyacinth"
+  },
+  {
+    "group": "India",
+    "name": "Umiam Lake",
+    "country": "Meghalaya",
+    "latitude": 25.66,
+    "longitude": 91.89,
+    "osm_ref": "relation/7323730",
+    "why": "Hill reservoir near Shillong affected by catchment erosion"
+  },
+  {
+    "group": "India",
+    "name": "Palak Dil",
+    "country": "Mizoram",
+    "latitude": 22.2018,
+    "longitude": 92.8891,
+    "osm_ref": "way/244566856",
+    "why": "Mizoram's largest natural lake, in a forested reserve"
+  },
+  {
+    "group": "India",
+    "name": "Lake Pichola",
+    "country": "Rajasthan",
+    "latitude": 24.572,
+    "longitude": 73.68,
+    "osm_ref": "relation/1543661",
+    "why": "Historic urban lake in Udaipur under tourism pressure"
+  },
+  {
+    "group": "India",
+    "name": "Sambhar Salt Lake",
+    "country": "Rajasthan",
+    "latitude": 26.95,
+    "longitude": 75.08,
+    "osm_ref": "way/22825270",
+    "why": "India's largest inland salt lake; often too salty and shallow to read as open water"
+  },
+  {
+    "group": "India",
+    "name": "Tsomgo Lake",
+    "country": "Sikkim",
+    "latitude": 27.375,
+    "longitude": 88.763,
+    "osm_ref": "way/473531836",
+    "why": "Glacial lake at 3,750 m; often frozen in winter"
+  },
+  {
+    "group": "India",
+    "name": "Chembarambakkam Lake",
+    "country": "Tamil Nadu",
+    "latitude": 13.01,
+    "longitude": 80.06,
+    "osm_ref": "way/25453624",
+    "why": "Reservoir supplying Chennai's drinking water"
+  },
+  {
+    "group": "India",
+    "name": "Kodaikanal Lake",
+    "country": "Tamil Nadu",
+    "latitude": 10.233,
+    "longitude": 77.488,
+    "osm_ref": "way/31541343",
+    "why": "Star-shaped hill-station lake with nutrient loading"
+  },
+  {
+    "group": "India",
+    "name": "Rudrasagar Lake",
+    "country": "Tripura",
+    "latitude": 23.5068,
+    "longitude": 91.3186,
+    "osm_ref": "relation/1621654",
+    "why": "Lake around the Neermahal water palace"
+  },
+  {
+    "group": "India",
+    "name": "Ramgarh Tal",
+    "country": "Uttar Pradesh",
+    "latitude": 26.73,
+    "longitude": 83.41,
+    "osm_ref": "way/44674108",
+    "why": "Large urban lake in Gorakhpur, restored after heavy pollution"
+  },
+  {
+    "group": "India",
+    "name": "Naini Lake",
+    "country": "Uttarakhand",
+    "latitude": 29.3857,
+    "longitude": 79.4603,
+    "osm_ref": "way/82889387",
+    "why": "Hill-town lake with seasonal algal growth"
+  },
+  {
+    "group": "India",
+    "name": "Tehri Reservoir",
+    "country": "Uttarakhand",
+    "latitude": 30.4159,
+    "longitude": 78.4628,
+    "osm_ref": "relation/15790783",
+    "why": "Deep Himalayan reservoir on the Bhagirathi"
+  },
+  {
+    "group": "India",
+    "name": "Rabindra Sarobar",
+    "country": "West Bengal",
+    "latitude": 22.5103,
+    "longitude": 88.3588,
+    "osm_ref": "relation/8257895",
+    "why": "Artificial lake in south Kolkata used for rowing"
+  },
+  {
+    "group": "India",
+    "name": "Bhalswa Lake",
+    "country": "Delhi",
+    "latitude": 28.7445,
+    "longitude": 77.1716,
+    "osm_ref": "relation/16104149",
+    "why": "Horseshoe lake beside a landfill in north Delhi"
+  },
+  {
+    "group": "India",
+    "name": "Pangong Tso",
+    "country": "Ladakh",
+    "latitude": 33.75,
+    "longitude": 78.66,
+    "osm_ref": "relation/952145",
+    "why": "Very clear high-altitude lake at 4,225 m; frozen in winter"
+  },
+  {
+    "group": "India",
+    "name": "Sukhna Lake",
+    "country": "Chandigarh",
+    "latitude": 30.742,
+    "longitude": 76.818,
+    "osm_ref": "relation/8421510",
+    "why": "Rain-fed reservoir at the foot of the Shivaliks; prone to silting"
+  },
+  {
+    "group": "India",
+    "name": "Ousteri Lake",
+    "country": "Puducherry",
+    "latitude": 11.955,
+    "longitude": 79.745,
+    "osm_ref": "way/156785634",
+    "why": "Large shallow wetland with dense aquatic vegetation"
+  },
+  {
+    "group": "India",
+    "name": "Potheri Lake (SRM University)",
+    "country": "Tamil Nadu",
+    "latitude": 12.816,
+    "longitude": 80.0458,
+    "osm_ref": "way/67551369",
+    "why": "Campus-side lake at SRM Kattankulathur; unnamed on OpenStreetMap, outline fetched by id"
+  },
+  {
+    "group": "World",
+    "name": "Lake Erie (western basin)",
+    "country": "USA / Canada",
+    "latitude": 41.7,
+    "longitude": -83.25,
+    "osm_ref": "relation/4039900",
+    "why": "Recurring summer cyanobacteria blooms off Toledo"
+  },
+  {
+    "group": "World",
+    "name": "Lake Taihu",
+    "country": "China",
+    "latitude": 31.25,
+    "longitude": 120.15,
+    "osm_ref": "relation/1126533",
+    "why": "Large shallow lake with persistent cyanobacteria blooms"
+  },
+  {
+    "group": "World",
+    "name": "Lake Victoria (Winam Gulf)",
+    "country": "Kenya / Uganda / Tanzania",
+    "latitude": -0.25,
+    "longitude": 34.65,
+    "osm_ref": "relation/2606941",
+    "why": "Water hyacinth and algal blooms near Kisumu"
+  },
+  {
+    "group": "World",
+    "name": "Lake Okeechobee",
+    "country": "USA",
+    "latitude": 26.95,
+    "longitude": -80.8,
+    "osm_ref": "relation/1240556",
+    "why": "Large Florida lake with frequent harmful algal blooms"
+  },
+  {
+    "group": "World",
+    "name": "Lake Titicaca (Puno Bay)",
+    "country": "Peru / Bolivia",
+    "latitude": -15.82,
+    "longitude": -69.98,
+    "osm_ref": "relation/3000330",
+    "why": "High-altitude lake; algal blooms near Puno"
+  },
+  {
+    "group": "World",
+    "name": "Lake Balaton",
+    "country": "Hungary",
+    "latitude": 46.85,
+    "longitude": 17.75,
+    "osm_ref": "relation/1638031",
+    "why": "Shallow lake whose turbidity changes with wind"
+  },
+  {
+    "group": "World",
+    "name": "Clear Lake",
+    "country": "USA",
+    "latitude": 39.08,
+    "longitude": -122.82,
+    "osm_ref": "relation/4046481",
+    "why": "Ancient eutrophic lake with recurring toxic cyanobacteria"
+  },
+  {
+    "group": "World",
+    "name": "Lake Winnipeg (south basin)",
+    "country": "Canada",
+    "latitude": 50.75,
+    "longitude": -96.8,
+    "osm_ref": "relation/1259563",
+    "why": "Extensive late-summer cyanobacteria blooms"
+  },
+  {
+    "group": "World",
+    "name": "Lake Tahoe",
+    "country": "USA",
+    "latitude": 39.09,
+    "longitude": -120.03,
+    "osm_ref": "relation/1823287",
+    "why": "Very clear oligotrophic reference lake"
+  },
+  {
+    "group": "World",
+    "name": "Lake Geneva (Lac Léman)",
+    "country": "Switzerland / France",
+    "latitude": 46.45,
+    "longitude": 6.55,
+    "osm_ref": "relation/332617",
+    "why": "Deep, clear lake for comparison with turbid ones"
+  }
+]

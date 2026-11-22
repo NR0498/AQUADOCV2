@@ -28,13 +28,16 @@ Satellites see only **optically active** constituents. AquaDoc estimates chlorop
 | Spectral indices and heuristic screening (`spectral_indices.py`, `risk.py`, `pipeline.py`) | Working |
 | FastAPI service with streaming analyses, caching, layer serving (`api.py`, `store.py`) | Working; SQLite locally, PostgreSQL via `DATABASE_URL` |
 | Water-quality model trained on GLORIA (`aquadoc_core/wq_model.py`, [model card](docs/models/water_quality_v1.md)) | Trained; used by the water pipeline |
-| Next.js dashboard and Vercel deployment | Planned |
+| Next.js dashboard (`web/`): live processing, map layers, band explanations, model accuracy | Working locally |
+| Vercel deployment | Planned (Phase 5) |
 
 ## Repository structure
 
 ```text
 AQUADOCV2/
 ├── aquadoc_core/        # Deployed backend: ingestion, imagery QA, indices, API, CLI
+├── web/                 # Next.js dashboard
+├── training/            # Offline model training and satellite validation
 ├── tests/               # Offline tests for aquadoc_core
 ├── research/            # Shelved lab-measurement matching workflow (not deployed)
 │   ├── lab_matching/
@@ -73,6 +76,8 @@ python -m aquadoc_core.cli water --lat 17.4239 --lon 78.4738 --osm relation/2833
 # By coordinate only (outline found via Overpass in parallel; slower)
 python -m aquadoc_core.cli water --lat 41.70 --lon -83.25 --out output/erie
 ```
+
+Run the dashboard: start the API on port 8000, then `cd web && npm install && npm run dev`, and open http://localhost:3000 (see `web/README.md`).
 
 Start the API and open the interactive docs at http://127.0.0.1:8000/docs:
 

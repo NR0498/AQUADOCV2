@@ -244,8 +244,15 @@ class PipelineTests(unittest.TestCase):
         request = WaterAnalysisRequest(latitude=17.42, longitude=78.47, end_date="2026-11-20", max_size_m=1000)
         events = list(run_water_analysis(request, self.services(self.candidates(), {"cloudy"}, body)))
         stages = [(e.stage, e.status) for e in events]
-        self.assertIn(("scene", "rejected"), stages)
+        self.assertIn(("mask", "rejected"), stages)
+        for stage in ("locate", "search", "scene", "mask", "correct", "estimate", "explain"):
+            self.assertIn((stage, "completed"), stages)
         self.assertEqual(stages[-1], ("complete", "completed"))
+        # Streaming previews arrive as data URLs at the stage that produced them.
+        scene_done = next(e for e in events if (e.stage, e.status) == ("scene", "completed"))
+        self.assertTrue(scene_done.data["previews"]["true_color"].startswith("data:image/png;base64,"))
+        estimate_done = next(e for e in events if (e.stage, e.status) == ("estimate", "completed"))
+        self.assertIn("chlorophyll_a", estimate_done.data["previews"])
         result, images = events[-1].data, events[-1].images
         self.assertEqual(result["scene"]["id"], "clear")
         self.assertEqual(result["water_body"]["name"], "Test Lake")
@@ -258,6 +265,17 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(result["spectrum"]), 10)
         self.assertEqual(set(result["band_sensitivity"]["chlorophyll_a"][0]), {"band", "elasticity", "share_pct"})
         self.assertTrue(result["not_detectable"])
+        # The stored timeline replays the pipeline without embedded images or the result itself.
+        timeline = result["timeline"]
+        self.assertEqual(timeline[-1]["stage"], "complete")
+        self.assertEqual(timeline[-1]["data"], {})
+        scene_entry = next(t for t in timeline if (t["stage"], t["status"]) == ("scene", "completed"))
+        self.assertIn("true_color", scene_entry["data"]["preview_layers"])
+        self.assertNotIn("previews", scene_entry["data"])
+        self.assertEqual(len(result["reflectance_correction"]["bands"]), 6)
+        layer_ids = {layer["id"] for layer in result["layers"]}
+        self.assertTrue({"true_color", "scene_classification", "pixel_classes", "ndci"} <= layer_ids)
+        self.assertEqual(layer_ids, set(images))
         for name, png in images.items():
             self.assertEqual(png[:4], b"\x89PNG", name)
         import json
@@ -276,7 +294,7 @@ class PipelineTests(unittest.TestCase):
         events = list(run_water_analysis(request, self.services([])))
         self.assertEqual((events[-1].stage, events[-1].status), ("search", "failed"))
         events = list(run_water_analysis(request, self.services(self.candidates()[:1], {"cloudy"})))
-        self.assertEqual((events[-1].stage, events[-1].status), ("scene", "failed"))
+        self.assertEqual((events[-1].stage, events[-1].status), ("mask", "failed"))
         bad = WaterAnalysisRequest(latitude=95, longitude=0)
         self.assertEqual(list(run_water_analysis(bad, self.services([])))[0].status, "failed")
 

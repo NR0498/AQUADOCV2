@@ -119,13 +119,24 @@ class CogBandReader:
         if missing:
             raise ValueError(f"Scene {item.get('id')} lacks assets {missing}")
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            results = dict(zip(asset_keys, pool.map(lambda key: self._read_one(item, key, grid), asset_keys)))
+            results = dict(zip(asset_keys, pool.map(lambda key: self._read_with_retry(item, key, grid), asset_keys)))
         arrays, calibration = {}, {}
         for key, (array, cal) in results.items():
             arrays[key] = array
             if cal:
                 calibration[key] = cal
         return arrays, calibration
+
+    def _read_with_retry(self, item: Mapping, key: str, grid: Grid):
+        """One retry with a freshly issued access token: a long-running server can hold a token that
+        Planetary Computer no longer accepts, which shows up as a read error on every image."""
+        try:
+            return self._read_one(item, key, grid)
+        except Exception:
+            import planetary_computer.sas
+
+            planetary_computer.sas.TOKEN_CACHE.clear()
+            return self._read_one(item, key, grid)
 
     def _read_one(self, item: Mapping, key: str, grid: Grid):
         import planetary_computer

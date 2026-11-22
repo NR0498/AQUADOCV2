@@ -186,6 +186,10 @@ def classify_pixels(rho: dict[str, np.ndarray], scl: np.ndarray, polygon_mask: n
         area = (scl_int == 6) | (mndwi > 0.1)
         notes.append("No mapped water polygon: water detected from SCL and MNDWI only.")
 
+    # Sen2Cor often labels dark water as cloud shadow, even on cloud-free days. A shadow needs a
+    # cloud: trust the SCL shadow class only where a real cloud's shadow can fall.
+    scl_shadow = finite & (scl_int == 3)
+    zone = None
     if sun_zenith_deg is not None and sun_azimuth_deg is not None and context_cloud.any():
         m = context_margin_px
         zone = project_shadow_zone(context_cloud, sun_zenith_deg, sun_azimuth_deg, resolution_m)
@@ -197,7 +201,18 @@ def classify_pixels(rho: dict[str, np.ndarray], scl: np.ndarray, polygon_mask: n
         reference = area & finite & haze_free & ~np.isin(scl_int, SCL_BAD)
         local = local_mean(brightness, reference)
         projected_shadow = dilate(zone & finite & (brightness < SHADOW_DARKENING * local), 1) & ~cloud
-    bad = finite & (np.isin(scl_int, SCL_BAD) | projected_shadow)
+    if not context_cloud.any():
+        trusted_scl_shadow = np.zeros_like(scl_shadow)
+    elif zone is not None:
+        trusted_scl_shadow = scl_shadow & dilate(zone, 2)
+    else:
+        trusted_scl_shadow = scl_shadow  # no sun geometry: cannot check, keep the SCL's call
+    ignored = int(np.count_nonzero(area & scl_shadow & ~trusted_scl_shadow))
+    if ignored:
+        notes.append(f"{ignored:,} water pixels labelled cloud shadow by Sentinel-2 had no cloud that could cast "
+                     "them; they were kept as water (dark water is often mislabelled as shadow).")
+    scl_bad = np.isin(scl_int, tuple(c for c in SCL_BAD if c != 3)) | trusted_scl_shadow
+    bad = finite & (scl_bad | projected_shadow)
     adjacent = dilate(bad, math.ceil(CLOUD_BUFFER_M / resolution_m)) & ~bad & finite
     if polygon_mask is None:
         # Without an outline, cloud/shadow pixels hide whether the surface is water: count
@@ -220,7 +235,7 @@ def classify_pixels(rho: dict[str, np.ndarray], scl: np.ndarray, polygon_mask: n
         "water_area_pixels": in_area,
         "no_data": count(area & ~finite),
         "cloud": count(area & np.isin(scl_int, (8, 9, 10))),
-        "cloud_shadow": count(area & ((scl_int == 3) | projected_shadow)),
+        "cloud_shadow": count(area & (trusted_scl_shadow | projected_shadow)),
         "snow_ice": count(area & (scl_int == 11)),
         "saturated_or_defective": count(area & (scl_int == 1)),
         "cloud_adjacent": count(area & adjacent),

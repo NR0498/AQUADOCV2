@@ -1,0 +1,28 @@
+# Only the API package, its model artifact and the dashboard are deployed.
+.venv/
+.venv-*/
+venv/
+myenv/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+*.sqlite3
+.env
+.env.*
+
+# Data, research and training material: offline only, never needed at runtime.
+/data/
+/NLA 2017 Report Data Files/
+/research/
+/training/
+/tests/
+/docs/
+/scripts/
+/output/
+/study.md
+/learning.md
+
+# Dashboard build output and dependencies are rebuilt on Vercel.
+web/node_modules/
+web/.next/
+web/tsconfig.tsbuildinfo

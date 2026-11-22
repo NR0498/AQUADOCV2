@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/* "Scientific editorial" design system (designed in Claude Design: AquaDoc Analyse).
+   Warm paper and ink, two accents at equal lightness/chroma (water blue, sediment ochre).
+   Chart series colours keep the colour-vision-validated palette. */
+:root {
+  color-scheme: light;
+  --page: oklch(0.985 0.006 85);
+  --surface: oklch(0.985 0.006 85);
+  --surface-2: oklch(0.962 0.009 85);
+  --surface-3: oklch(0.93 0.011 85);
+  --ink: oklch(0.23 0.012 80);
+  --ink-2: oklch(0.42 0.012 80);
+  --ink-muted: oklch(0.52 0.01 80);
+  --hairline: oklch(0.87 0.009 85);
+  --axis: oklch(0.78 0.01 85);
+  --border: oklch(0.87 0.009 85);
+  --accent: oklch(0.5 0.11 235);
+  --accent-wash: oklch(0.5 0.11 235 / 0.09);
+  --ochre: oklch(0.5 0.11 65);
+  --series-1: #2a78d6;
+  --series-3: #1baf7a;
+  --good: oklch(0.6 0.13 150);
+  --critical: #d03b3b;
+}
+
+/* Dark mode: the same paper/ink system inverted to a deep warm night, accents lifted for contrast. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: oklch(0.19 0.008 80);
+    --surface: oklch(0.19 0.008 80);
+    --surface-2: oklch(0.235 0.009 80);
+    --surface-3: oklch(0.28 0.01 80);
+    --ink: oklch(0.93 0.008 85);
+    --ink-2: oklch(0.78 0.01 85);
+    --ink-muted: oklch(0.64 0.01 85);
+    --hairline: oklch(0.33 0.01 80);
+    --axis: oklch(0.45 0.01 80);
+    --border: oklch(0.33 0.01 80);
+    --accent: oklch(0.72 0.11 235);
+    --accent-wash: oklch(0.72 0.11 235 / 0.14);
+    --ochre: oklch(0.74 0.11 65);
+    --series-1: #5598e7;
+    --good: oklch(0.72 0.14 150);
+    --critical: #e66767;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--ink-muted);
+  --color-hairline: var(--hairline);
+  --color-accent: var(--accent);
+  --color-accent-wash: var(--accent-wash);
+  --color-ochre: var(--ochre);
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+a { color: var(--accent); }
+
+/* Editorial panel: square corners, hairline rule, no shadow. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+.panel-strong {
+  background: var(--surface);
+  border: 1px solid var(--ink);
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.secnum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.text-pretty { text-wrap: pretty; }
+.text-balance { text-wrap: balance; }
+
+/* Striped placeholder for imagery that has not arrived yet. */
+.ph {
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 7px, var(--surface-3) 7px 8px);
+}
+
+.pixelated { image-rendering: pixelated; }
+
+@keyframes ad-pulse { 50% { opacity: 0.3; } }
+@keyframes ad-ring { from { transform: scale(0.8); opacity: 1; } to { transform: scale(1.55); opacity: 0; } }
+@keyframes ad-scan { from { top: -30%; } to { top: 100%; } }
+@keyframes ad-reveal { from { opacity: 0; transform: scale(1.04); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes ad-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ad-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.anim-pulse { animation: ad-pulse 1.2s infinite; }
+.anim-ring::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 1px solid var(--accent);
+  animation: ad-ring 1.3s ease-out infinite;
+}
+.anim-scan { animation: ad-scan 1.4s linear infinite; }
+.anim-reveal { animation: ad-reveal 0.7s ease-out both; }
+.anim-rise { animation: ad-rise 0.5s ease-out both; }
+.anim-drop { animation: ad-drop 0.18s ease-out both; }
+
+.maplibregl-ctrl-attrib { font-size: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::after { animation: none !important; transition: none !important; }
+}

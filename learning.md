@@ -2022,3 +2022,123 @@ Then open http://127.0.0.1:8000/api/docs.
 2. Why are cached results keyed by pipeline *and* model version? What would go wrong without the model version?
 3. The rate limiter is in memory. Describe two ways a determined client could bypass it on Vercel, and how the Firewall avoids both.
 4. Run two identical requests at the same moment. Both miss the cache and do the work twice. How would you prevent that?
+
+## 28. Phase 4 — The Dashboard
+
+### What was built
+
+A Next.js app in `web/` with four routes:
+
+| Route | What it shows |
+| --- | --- |
+| `/` | Search a water body (or click the map) → **live processing timeline** streamed from the API → map with per-pollutant heatmaps → estimate cards → "how the bands reveal it" (spectrum + band sensitivity) → pixel breakdown → what satellites can't see → provenance |
+| `/analyses/[id]` | The same result, shareable, loaded from the store |
+| `/bands` | Band guide: each Sentinel-2 band on the light spectrum, what it reveals about water, and which parameters use it |
+| `/model` | Model accuracy on real satellite match-ups and how confidence is assigned |
+
+Run it: see `web/README.md`. You need the API on port 8000 and `npm run dev` in `web/`, then open **http://localhost:3000**.
+
+### Design decisions
+
+- **Client components for anything data-driven.** All data comes from the Python API, so pages are thin server shells and the interactive parts are client components (`"use client"`). The static shells prerender at build time.
+- **Streaming progress with `fetch`, not `EventSource`.** `EventSource` only supports GET; analyses are POST. `lib/api.ts` reads the response body as a stream and splits Server-Sent Events on blank lines.
+- **One selected parameter drives everything.** Clicking a card switches the map layer, highlights that parameter's bands on the spectrum, and shows its band-sensitivity bars.
+- **Charts are hand-written SVG** (no chart library): a single-series spectrum line with an interquartile wash, thin horizontal bars, a tall segmented bar and log-scale range figures. Each has hover details and a table or text alternative.
+- **Colours were validated, not eyeballed.** The pixel-class palette was run through a colour-vision-deficiency checker. The first choice (green/yellow/orange) failed, and the shipped order (blue, aqua, orange, violet) passes in light and dark mode. Heatmaps use one-hue light→dark ramps, and text never uses series colours.
+- **Dark mode** comes from the same palette, stepped for a dark surface, via `prefers-color-scheme`.
+- **Honest UI.** Every card shows confidence, the validated satellite error and how many pixels were inside the training range. CDOM is always "low". A "What a satellite cannot see" panel sits next to the results.
+
+### Things that broke during testing (and why they are worth knowing)
+
+1. **CORS: `localhost` and `127.0.0.1` are different origins.** The API allowed `http://localhost:3000` only, so the browser blocked requests from `http://127.0.0.1:3000`. Both are now allowed in development.
+2. **Next.js dev server only trusts `localhost`.** Opening the dev server at `127.0.0.1` blocked its scripts and hot-reload socket, so React never hydrated and the search box silently did nothing. Use `http://localhost:3000`, or configure `allowedDevOrigins`.
+3. **Stale cache after changing outputs.** Results are cached by request *and* pipeline version. After changing result fields, the version had to be bumped (`water-pipeline-v2`), or old-format results would be served.
+4. **Security advisory → major upgrade.** `npm audit` flagged a critical XSS issue in MapLibre ≤ 6.4. Upgrading to 6.19 changed two things: no default export (ESM named exports), and the map worker is now a separate file the bundler doesn't place where MapLibre looks. Fix: copy the worker to `public/` on install and call `setWorkerUrl`.
+5. **Grid items and `min-width: auto`.** A chart with a minimum width made its whole panel wider than a phone screen. Grid and flex children need `min-w-0` to let inner content scroll instead.
+6. **Look at screenshots.** Overlapping B8/B8A labels and squeezed card titles were only visible in rendered screenshots. Headless Chrome via Playwright made that repeatable.
+
+### Concepts to study
+
+- **Next.js App Router**: layouts, pages, server vs client components: https://nextjs.org/docs/app/getting-started/server-and-client-components
+- **Cache Components and Partial Prerendering** (static shell + streamed dynamic parts; why URL params go inside `<Suspense>`): https://nextjs.org/docs/app/getting-started/caching
+- **React hooks and effects** (and why not to call `setState` directly inside an effect): https://react.dev/learn/you-might-not-need-an-effect
+- **Streams in the browser**: `ReadableStream`, `TextDecoder`: https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams
+- **MapLibre GL JS**: sources, layers, image sources with corner coordinates: https://maplibre.org/maplibre-gl-js/docs/
+- **Web Mercator and why an image overlay needs four corners**: https://maplibre.org/maplibre-style-spec/sources/#image
+- **SVG for charts** (`viewBox`, paths, accessible names): https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial
+- **Colour for data visualisation and colour-vision deficiency**: https://blog.datawrapper.de/colorblindness-part1/ and Crameri et al. (2020), *The misuse of colour in science communication*, Nature Communications 11: https://doi.org/10.1038/s41467-020-19160-7
+- **Tailwind CSS v4** (CSS-first theme with `@theme`): https://tailwindcss.com/docs/theme
+- **CORS**: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+- **Accessibility basics** (labels, `aria-live` for progress, keyboard focus on chart points): https://www.w3.org/WAI/tutorials/
+- **Playwright for screenshots and end-to-end checks**: https://playwright.dev/docs/intro
+
+### Redo it yourself
+
+1. `npx create-next-app@latest web --ts --tailwind --app`, then read `node_modules/next/dist/docs/` for the installed version before writing code.
+2. Write `lib/api.ts` first: types that mirror the API's JSON, then the SSE reader. Test the reader against the running API in the browser console.
+3. Build the map with a click handler and a marker, then add the image overlay using `grid.corners_wgs84` from a stored result.
+4. Add one card, then the spectrum chart, then wire the "selected parameter" state through all of them.
+5. Screenshot desktop, dark mode and a 390 px phone with Playwright. Fix whatever looks wrong.
+
+### Exercises
+
+1. Add a "compare two dates" view: run the analysis for two windows and show the chlorophyll difference map. Which colour scheme does a difference need (hint: diverging, with a neutral midpoint)?
+2. The timeline shows rejected cloudy scenes. Add a thumbnail of each rejected scene's pixel classification so users can *see* why it was skipped.
+3. Make the spectrum chart's x-axis proportional to wavelength with a broken axis between 900 and 1600 nm. Is it more or less readable?
+4. Test the dashboard with only a keyboard. Can you choose a parameter, read the chart values and switch map layers?
+
+## 29. Phase 4b — Redesign: show how the result was made
+
+### What changed
+
+The dashboard was rebuilt around one idea: a visitor should see **how a satellite image becomes a number**, not just the number. The design was drafted in Claude Design ("AquaDoc Analyse") as a scientific-editorial page: warm paper and ink, a serif for headlines (Newsreader), IBM Plex for text and figures, and numbered sections like a journal article.
+
+| Section | What it does |
+| --- | --- |
+| 01 Location | Four ways to choose a place: a **featured-lakes dropdown** (9 Indian, 10 world lakes, plus your recent analyses), **search by name**, **typed coordinates** (paste "lat, lon" into either field) and a **pin on the map**. Date window chips (30 days to 1 year) or a custom date range. |
+| 02 Pipeline (Fig. 1) | Seven stages (Locate, Acquire, Read, Mask, Correct, Estimate, Explain) animate as the server streams them. Each stage shows the real intermediate image: lake outline, cloud cover of candidate images, true colour, AquaDoc's mask, reflectance before/after correction, heatmaps, index maps. Select a stage to read what it did and why. |
+| 03 Findings | Map plus editorial parameter rows: value, confidence dots, log-scale 80% range strip, validated satellite error. |
+| 04 Bands (Fig. 3) | Spectrum and band sensitivity for the selected parameter. |
+| 05–06 | What a satellite cannot see; provenance to reproduce the result. |
+
+Saved and cached results **replay** their stored timeline, so a shared link animates the same way a live run does.
+
+### Things worth knowing
+
+1. **Replaying a timeline.** The API stores every stage event with the result. Replay compresses real timing to about four seconds with a minimum gap per event, and respects `prefers-reduced-motion` by showing everything at once.
+2. **"Unstable value" errors under Cache Components.** Calling `new Date()` while rendering made Next.js complain: the static shell would bake in the prerender date. Dates are now computed only after interaction or in effects.
+3. **`usePathname()` is runtime data.** Highlighting the current nav link broke the production build of `/analyses/[id]`. Fix: wrap the hook in `<Suspense>` with plain links as the fallback.
+4. **A stale dev stylesheet looks like a CSS bug.** Dark mode seemed broken in the dev server, but the production CSS contained the rules. Check the built output before rewriting working code.
+5. **Lint noise hides real warnings.** A minified MapLibre worker in `public/` produced 1,135 warnings. It is now ignored in `eslint.config.mjs`.
+
+### Deployment configuration (Phase 5 preparation)
+
+- `vercel.json` uses **Vercel Services**: `web` (Next.js in `web/`) and `api` (FastAPI via `main.py`) ship as one deployment. `/api/*` goes to the API, everything else to the dashboard, so the browser only ever talks to one origin (no CORS).
+- `.vercelignore` keeps training data, research code and virtual environments out of the upload. Runtime Python dependencies are about 190 MB, under the 500 MB function limit.
+- Results need a real database in production: a Vercel function's disk is temporary, so set `DATABASE_URL` (Neon Postgres). Without it, saved links would vanish when an instance recycles.
+
+### Concepts to study
+
+- **Vercel Services** (multi-service projects): https://vercel.com/docs/services
+- **Vercel Functions limits** (duration, bundle size, Fluid compute): https://vercel.com/docs/functions/limitations
+- **Next.js Cache Components and Suspense for runtime data**: https://nextjs.org/docs/app/getting-started/caching
+- **Combobox and listbox accessibility patterns**: https://www.w3.org/WAI/ARIA/apg/patterns/combobox/
+- **`prefers-reduced-motion` and `prefers-color-scheme`**: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion
+- **Editorial data design** (figures numbered and captioned like a paper): Edward Tufte, *The Visual Display of Quantitative Information*
+
+### Exercises
+
+1. Add a keyboard shortcut (left/right arrows) to step through pipeline stages. Which ARIA role should the stage list use?
+2. The replay compresses time to four seconds. Make the compression proportional, so a slow stage still looks slow. Is that more honest, or just slower?
+3. Add a "compare with a previous analysis" link to the provenance section, using `/api/analyses?limit=…` filtered by water body.
+
+### Debugging the first deployment (and the local server)
+
+1. **First-time imports inside worker threads.** The image reader opens 11 files in parallel threads, and each thread did `import rasterio.vrt` inside the function. On a fresh process, several threads importing the same C-extension package at once can fail with `ImportError`, and a half-initialised module can stay broken for the life of the process. Fix: import heavy libraries once at start-up, on the main thread (`_preload_geospatial` in `api.py`).
+2. **Long-running servers and expiring credentials.** Planetary Computer links are signed with short-lived tokens. After hours of uptime every image read failed with `RasterioIOError`, while a fresh process worked. The reader now retries once with a freshly issued token.
+3. **Never show raw error strings from URLs.** A read error's message contains the signed link, credentials included. `_short_error` strips query strings before errors reach logs or users.
+4. **Name search vs place names.** "Powai" or "Naini" match the suburb or town, not the lake. When no water body matches, the API retries once with "<name> lake", pausing 1 s for Nominatim's usage policy.
+5. **Make errors diagnosable.** "Analysis failed unexpectedly (ImportError)" was not enough to act on. Errors now include the module name (safe) and image-read reasons (sanitised).
+6. **A project's first Vercel deployment goes straight to production.** Later ones are previews unless you pass `--prod`. Previews are behind Vercel login; `vercel curl` reaches them.
+
+Exercise: write a test that runs `_read_with_retry` with a fake reader that fails once, and check that it clears the token cache and succeeds on the second attempt.

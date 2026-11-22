@@ -1,5 +1,6 @@
 # Python environments and caches
 .venv/
+.venv-*/
 venv/
 myenv/
 __pycache__/
@@ -38,3 +39,6 @@ Thumbs.db
 
 # Local analysis outputs
 /output/
+
+.vercel
+.env*

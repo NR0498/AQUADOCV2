@@ -45,6 +45,8 @@ BANDS: list[dict] = [
      "indicates": ["water_mask"]},
 ]
 
+BAND_CENTERS: dict[str, int] = {band["band"]: band["center_nm"] for band in BANDS}
+
 PARAMETERS: dict[str, dict] = {
     "chlorophyll_a": {
         "label": "Chlorophyll-a", "unit": "µg/L", "kind": "model", "colormap": "algae",

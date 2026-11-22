@@ -19,6 +19,7 @@ stored result instead of re-processing imagery.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import queue
 import threading
@@ -26,6 +27,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Callable, Iterator
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -36,8 +38,29 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import band_guide
 from .store import AnalysisStore, store_from_env
 from .water_pipeline import PIPELINE_VERSION, PipelineEvent, Services, WaterAnalysisRequest, run_water_analysis
-from .waterbody import search_water_bodies
+from .waterbody import nearby_water_bodies, search_water_bodies
 from .wq_model import WaterQualityModel
+
+log = logging.getLogger("aquadoc.api")
+
+# Import the heavy geospatial libraries once, at start-up, on the main thread. The pipeline imports
+# them lazily inside a worker thread; on a cold serverless instance a first-time import racing with
+# other requests can fail half-way, and the broken module then stays cached for the instance's life.
+_PRELOAD = ("rasterio", "rasterio.enums", "rasterio.features", "rasterio.transform", "rasterio.vrt",
+            "rasterio.warp", "rasterio.windows", "shapely.geometry", "planetary_computer", "pystac")
+
+
+def _preload_geospatial() -> None:
+    import importlib
+
+    for name in _PRELOAD:
+        try:
+            importlib.import_module(name)
+        except Exception:  # surfaced again, with context, when an analysis needs the module
+            log.exception("Could not preload %s", name)
+
+
+_preload_geospatial()
 
 API_VERSION = "1.0.0"
 CACHE_HOURS = 24
@@ -117,7 +140,8 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="AquaDoc API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json",
                   description="Satellite (Sentinel-2) estimates of optically detectable water-quality parameters.")
-    origins = [o for o in os.environ.get("AQUADOC_CORS_ORIGINS", "http://localhost:3000").split(",") if o]
+    default_origins = "http://localhost:3000,http://127.0.0.1:3000"  # local dashboard dev server
+    origins = [o.strip() for o in os.environ.get("AQUADOC_CORS_ORIGINS", default_origins).split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"], allow_headers=["*"])
 
     state: dict = {"store": store}
@@ -205,6 +229,44 @@ def create_app(
         response.headers["Cache-Control"] = "public, max-age=86400"
         return {"results": results, "attribution": "© OpenStreetMap contributors"}
 
+    @lru_cache(maxsize=512)
+    def cached_nearby(latitude: float, longitude: float, radius_km: int) -> tuple:
+        return tuple(nearby_water_bodies(latitude, longitude, radius_km))
+
+    def latest_analysis_for(lake: dict, recent: list[dict]) -> dict | None:
+        """The newest saved analysis whose point lies on this lake (inside its bounding box)."""
+        south, north, west, east = lake["bbox"]
+        for row in recent:  # newest first
+            lat, lon = row.get("latitude"), row.get("longitude")
+            if lat is None or lon is None or not (south - 0.002 <= lat <= north + 0.002 and west - 0.002 <= lon <= east + 0.002):
+                continue
+            result = get_store().get(row["id"])
+            if not result:
+                continue
+            estimates = result.get("estimates", {})
+            pick = lambda key: (estimates.get(key) or {}).get("value")  # noqa: E731
+            return {"id": row["id"], "scene_datetime": row.get("scene_datetime"), "created_at": row.get("created_at"),
+                    "chlorophyll_a": pick("chlorophyll_a"), "turbidity": pick("turbidity"),
+                    "secchi_depth": pick("secchi_depth"),
+                    "trophic_state": (estimates.get("chlorophyll_a") or {}).get("trophic_state"),
+                    "clear_fraction": (result.get("pixels") or {}).get("clear_fraction")}
+        return None
+
+    @app.get("/api/waterbodies/nearby", tags=["reference"])
+    def nearby(latitude: float = Query(ge=-90, le=90), longitude: float = Query(ge=-180, le=180),
+               radius_km: int = Query(default=25, ge=5, le=50)) -> dict:
+        # Rounded to ~1 km before use: enough to find lakes, without passing on a precise location.
+        lat, lon = round(latitude, 2), round(longitude, 2)
+        try:
+            lakes = [dict(lake) for lake in cached_nearby(lat, lon, radius_km)]
+        except Exception as exc:
+            raise HTTPException(502, "The lake directory (OpenStreetMap) is temporarily unavailable") from exc
+        recent = get_store().list_recent(200)
+        for lake in lakes:
+            lake["latest_analysis"] = latest_analysis_for(lake, recent)
+        return {"origin": {"latitude": lat, "longitude": lon}, "radius_km": radius_km, "lakes": lakes,
+                "attribution": "© OpenStreetMap contributors"}
+
     @app.post("/api/analyses/stream", tags=["analyses"])
     def analyze_stream(body: AnalyzeRequest, http_request: Request) -> StreamingResponse:
         pipeline_request, key, cached = prepare(body)
@@ -227,6 +289,7 @@ def create_app(
                     for item in run_water_analysis(pipeline_request, services()):
                         channel.put(item)
                 except Exception as exc:  # report instead of silently dropping the stream
+                    log.exception("Analysis failed")  # full traceback in server logs; clients get the type only
                     channel.put(exc)
                 finally:
                     channel.put(done)
@@ -241,7 +304,10 @@ def create_app(
                 if item is done:
                     return
                 if isinstance(item, Exception):
-                    yield _sse("error", {"message": f"Analysis failed unexpectedly ({type(item).__name__})"})
+                    detail = type(item).__name__
+                    if isinstance(item, ImportError):  # a missing module name is safe and makes deploy issues diagnosable
+                        detail += f": {item.name or str(item)[:120]}"
+                    yield _sse("error", {"message": f"Analysis failed unexpectedly ({detail})"})
                     continue
                 event: PipelineEvent = item
                 if event.stage == "complete":
@@ -255,7 +321,9 @@ def create_app(
                     yield _sse("error", {"message": event.message, "stage": event.stage})
 
         return StreamingResponse(events(), media_type="text/event-stream",
-                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+                                 # no-transform stops proxies (including the Next.js dev server) from gzipping the
+                                 # stream, which would buffer events and make the live pipeline jump.
+                                 headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
 
     @app.post("/api/analyses", tags=["analyses"])
     def analyze(body: AnalyzeRequest, http_request: Request) -> dict:

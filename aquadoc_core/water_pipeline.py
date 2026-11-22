@@ -11,7 +11,9 @@ stream. External services are injectable, so tests run offline.
 
 from __future__ import annotations
 
+import logging
 import math
+import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -30,7 +32,7 @@ from .waterbody import WaterBody, find_water_body_cached, lookup_water_body
 from .wq_features import MODEL_BANDS
 from .wq_model import WaterQualityModel
 
-PIPELINE_VERSION = "water-pipeline-v1"
+PIPELINE_VERSION = "water-pipeline-v4"  # bump whenever results change shape or meaning (invalidates the API cache)
 MIN_SIZE_M, DEFAULT_MAX_SIZE_M, HARD_MAX_SIZE_M = 600, 5000, 10000
 # Floating-material anomaly: FDI this far above the scene's open-water median (reflectance
 # units) and above 4 robust standard deviations. Absolute thresholds fail in turbid lakes.
@@ -48,7 +50,7 @@ class WaterAnalysisRequest:
     end_date: str | None = None     # default: today (UTC)
     lookback_days: int = 60
     max_size_m: int = DEFAULT_MAX_SIZE_M
-    max_scene_attempts: int = 4
+    max_scene_attempts: int = 6
     max_cloud_cover: float = 60.0
     min_valid_pixels: int = 20
     min_clear_fraction: float = 0.2
@@ -106,6 +108,14 @@ def _default_model() -> WaterQualityModel:
 
 # --------------------------------------------------------------------------- helpers
 
+log = logging.getLogger("aquadoc.pipeline")
+
+
+def _short_error(exc: Exception, limit: int = 160) -> str:
+    """Exception type and message without URL query strings (signed links carry credentials)."""
+    text = re.sub(r"\?[^\s'\"]*", "", str(exc)).strip()
+    return f"{type(exc).__name__}: {text}"[:limit] if text else type(exc).__name__
+
 def _meters_extent(bounds, latitude) -> tuple[float, float]:
     minx, miny, maxx, maxy = bounds
     return (maxx - minx) * 111_320 * math.cos(math.radians(latitude)), (maxy - miny) * 110_574
@@ -133,7 +143,8 @@ def _locate_done(event, body: WaterBody | None, grid: Grid, extent_note: str, no
     else:
         message = f"No mapped water outline; detecting water spectrally in the {extent_note}"
     return event("locate", "completed", message, {
-        "water_body": body.summary() if body else None,
+        "water_body": {**body.summary(), "geometry": _display_geometry(body, grid)} if body else None,
+        "grid_corners": grid.corners_wgs84(),
         "grid": {"width": grid.width, "height": grid.height, "resolution_m": grid.resolution_m, "extent": extent_note},
     })
 
@@ -158,12 +169,67 @@ def _round(value: float, digits: int = 4) -> float | None:
     return float(f"{value:.{digits}g}")
 
 
+def _previews(images: dict[str, bytes]) -> dict[str, str]:
+    """PNG layers as data URLs, so a streaming client can show them the moment a stage ends."""
+    import base64
+
+    return {name: "data:image/png;base64," + base64.b64encode(png).decode("ascii") for name, png in images.items()}
+
+
+def _pixel_class_png(masks) -> bytes:
+    order = ["cloud_or_shadow", "cloud_adjacent", "not_water_like", "glint_or_mixed",
+             "floating_vegetation_or_scum", "valid_open_water"]  # painted bottom -> top
+    return render.class_map([(masks.layers[name], render.hex_to_rgba(render.PIXEL_CLASS_COLORS[name], 230))
+                             for name in order], masks.valid_water.shape)
+
+
 def _display_geometry(body: WaterBody, grid: Grid) -> dict | None:
     """Outline clipped to the analysis window and simplified (~20 m), for the map."""
     from shapely.geometry import box
 
     clipped = body.geometry.intersection(box(*_bbox_of(grid)).buffer(0.002))
     return mapping(clipped.simplify(0.0002, preserve_topology=True)) if not clipped.is_empty else None
+
+
+BLOCKER_TEXT = {
+    "cloud": "cloud, cloud shadow and haze",
+    "floating": "floating vegetation or dense algal scum",
+    "not_water": "surface that does not look like open water",
+    "glint": "sun glint",
+}
+
+
+def _attempt_order(candidates: list, limit: int, newest: int = 2) -> list:
+    """The newest images first (the goal is the latest clear view), then the least cloudy of the rest.
+
+    Tile cloud cover describes a 110 km tile, not the lake, but when the newest images are clouded
+    over, the clearest older tiles are far more likely to show the lake than the next-newest ones."""
+    head = candidates[:newest]
+    rest = sorted(candidates[newest:], key=lambda c: (c.cloud_cover if c.cloud_cover is not None else 100.0))
+    return (head + rest)[:limit]
+
+
+def _main_blocker(counts: dict) -> str:
+    """Which kind of pixel removed most of the water on a rejected image."""
+    removed = {
+        "cloud": counts["cloud"] + counts["cloud_shadow"] + counts["cloud_adjacent"] + counts["snow_ice"],
+        "floating": counts["floating_vegetation_or_scum"],
+        "not_water": counts["not_water_like"],
+        "glint": counts["glint_or_mixed"],
+    }
+    return max(removed, key=removed.get)
+
+
+def _no_image_message(blockers: list[str]) -> str:
+    if blockers and blockers.count("floating") * 2 >= len(blockers):
+        return ("On the clear images this water was mostly covered by floating vegetation or dense algal scum, so "
+                "there was too little open water to estimate concentrations. The surface cover itself is the finding.")
+    if blockers and all(b in ("floating", "not_water") for b in blockers):
+        return ("The surface did not look like open water on any image (dense vegetation, scum, very shallow or "
+                "unusually coloured water such as a salt lake), so the model was not applied.")
+    if not blockers:
+        return "No image in this period could be read. Try again, or choose a longer date range."
+    return "No image in this period had enough clear open water (clouds or haze). Try a longer date range."
 
 
 def _trophic_state(chl: float | None) -> str | None:
@@ -231,8 +297,16 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
     services = services or Services()
     t0 = time.perf_counter()
 
+    timeline: list[dict] = []  # stored with the result so a shared link can replay the pipeline
+
     def event(stage, status, message, data=None, images=None):
-        return PipelineEvent(stage, status, message, data or {}, int((time.perf_counter() - t0) * 1000), images or {})
+        built = PipelineEvent(stage, status, message, data or {}, int((time.perf_counter() - t0) * 1000), images or {})
+        stored = {} if stage == "complete" else {k: v for k, v in built.data.items() if k != "previews"}
+        if "previews" in built.data:
+            stored["preview_layers"] = list(built.data["previews"])
+        timeline.append({"stage": stage, "status": status, "message": message, "data": stored,
+                         "elapsed_ms": built.elapsed_ms})
+        return built
 
     try:
         request.validate()
@@ -296,19 +370,27 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
         polygon_mask = shoreline_buffer = None
         polygon_ready = False
         asset_keys = [*REFLECTANCE_ASSETS, SCL_ASSET]
-        attempts, accepted = [], None
-        for candidate in candidates[: request.max_scene_attempts]:
+        attempts, accepted, blockers = [], None, []
+        for candidate in _attempt_order(candidates, request.max_scene_attempts):
             when = candidate.datetime[:10]
-            yield event("scene", "started", f"Reading 10 bands + cloud mask from {candidate.platform or 'Sentinel-2'} "
-                        f"scene of {when}", {"scene": candidate.summary()})
+            yield event("scene", "started", f"Reading 10 bands + scene classification from {candidate.platform or 'Sentinel-2'} "
+                        f"image of {when}", {"scene": candidate.summary()})
             try:
                 arrays, calibration = services.reader.read(candidate.item, grid, asset_keys)
             except Exception as exc:
-                attempts.append({**candidate.summary(), "outcome": "read_error", "detail": str(exc)[:200]})
-                yield event("scene", "rejected", f"Could not read scene of {when}: {type(exc).__name__}",
+                detail = _short_error(exc)
+                log.warning("Reading %s failed: %s", candidate.summary().get("id"), detail)
+                attempts.append({**candidate.summary(), "outcome": "read_error", "detail": detail})
+                yield event("scene", "rejected", f"Could not read the image of {when}: {detail}",
                             {"scene": candidate.summary()})
                 continue
             rho = {REFLECTANCE_ASSETS[key]: arrays[key] for key in REFLECTANCE_ASSETS}
+            scene_images = {
+                "true_color": render.true_color(rho["B4"], rho["B3"], rho["B2"]),
+                "scene_classification": render.scl_map(arrays[SCL_ASSET]),
+            }
+            yield event("scene", "completed", f"Read a {grid.width}×{grid.height} pixel window (20 m) from the image of {when}",
+                        {"scene": candidate.summary(), "previews": _previews(scene_images)})
             if body_future is not None:  # first successful read: the outline is needed now
                 yield resolve_body()
             if not polygon_ready:
@@ -318,6 +400,7 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
                     notes.extend(polygon_notes)
                     if polygon_mask.sum() == 0:
                         polygon_mask = None
+            yield event("mask", "started", "Detecting clouds, projecting their shadows and isolating open water")
             properties = candidate.item.get("properties", {})
             zenith, azimuth = properties.get("s2:mean_solar_zenith"), properties.get("s2:mean_solar_azimuth")
             context_scl, margin = None, 0
@@ -335,31 +418,41 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
                                     sun_zenith_deg=zenith, sun_azimuth_deg=azimuth,
                                     context_scl=context_scl, context_margin_px=margin)
             counts = masks.counts
+            mask_images = {"pixel_classes": _pixel_class_png(masks)}
             ok = counts["valid_open_water"] >= request.min_valid_pixels and counts["clear_fraction"] >= request.min_clear_fraction
             attempts.append({**candidate.summary(), "outcome": "accepted" if ok else "too_cloudy", "pixels": counts})
+            mask_data = {"scene": candidate.summary(), "pixels": counts, "previews": _previews(mask_images),
+                         "sun": {"zenith_deg": zenith, "azimuth_deg": azimuth}}
             if ok:
-                accepted = (candidate, rho, arrays[SCL_ASSET], masks, calibration)
-                yield event("scene", "completed", f"Scene of {when}: {counts['valid_open_water']} clear open-water pixels "
-                            f"({counts['clear_fraction']:.0%} of the water area)", {"scene": candidate.summary(), "pixels": counts})
+                accepted = (candidate, rho, arrays[SCL_ASSET], masks, calibration, {**scene_images, **mask_images})
+                yield event("mask", "completed", f"{counts['valid_open_water']:,} clear open-water pixels "
+                            f"({counts['clear_fraction']:.0%} of the water area); {counts['cloud']:,} cloud and "
+                            f"{counts['cloud_shadow']:,} shadow pixels removed", mask_data)
                 break
-            yield event("scene", "rejected", f"Scene of {when}: only {counts['clear_fraction']:.0%} of the water is clear "
-                        f"({counts['cloud']} cloud, {counts['cloud_shadow']} shadow pixels); trying an earlier date",
-                        {"scene": candidate.summary(), "pixels": counts})
+            blocker = _main_blocker(counts)
+            blockers.append(blocker)
+            yield event("mask", "rejected", f"Only {counts['clear_fraction']:.0%} of the water is clear on {when} "
+                        f"(mostly {BLOCKER_TEXT[blocker]}); trying an earlier image", mask_data)
         if accepted is None:
-            yield event("scene", "failed", "No attempted scene had enough clear open water. Try a longer date range.",
-                        {"attempts": attempts})
+            yield event("mask", "failed", _no_image_message(blockers), {"attempts": attempts})
             return
     finally:
         if executor is not None:
             executor.shutdown(wait=False, cancel_futures=True)
-    candidate, rho, scl, masks, calibration = accepted
+    candidate, rho, scl, masks, calibration, images = accepted
     notes.extend(masks.notes)
     valid = masks.valid_water
     n_valid = int(valid.sum())
-
-    # 4. Estimate -----------------------------------------------------------------
-    yield event("estimate", "started", f"Running the water-quality model on {n_valid} pixels")
+    layers = [
+        {"id": "true_color", "label": "True colour (B4, B3, B2)"},
+        {"id": "scene_classification", "label": "Sentinel-2 scene classification (as delivered)",
+         "legend": render.SCL_LEGEND},
+        {"id": "pixel_classes", "label": "AquaDoc pixel classification", "legend": render.PIXEL_CLASS_LEGEND},
+    ]
     model = services.model()
+
+    # 4. Correct reflectance --------------------------------------------------------
+    yield event("correct", "started", "Smoothing 3×3 neighbourhoods and correcting Sentinel-2 reflectance over water")
     # Average each band over valid 3x3 neighbours (60 m) before estimating: band-ratio
     # signals such as B5/B4 amplify sensor noise, and averaging 9 pixels cuts it ~3x.
     smoothed = {band: np.where(valid, local_mean(np.where(valid, rho[band], 0.0), valid, SMOOTHING_WINDOW_PX,
@@ -368,6 +461,20 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
     # match-ups (training/validate_satellite.py) is used for the targets where it helped.
     rrs_l2a = {band: smoothed[band][valid] / math.pi for band in (*MODEL_BANDS, "B11")}
     rrs_valid = model.correct_satellite_rrs(rrs_l2a)
+    correction = [
+        {"band": band, "center_nm": band_guide.BAND_CENTERS[band],
+         "rrs_l2a": _round(float(np.median(rrs_l2a[band]))), "rrs_corrected": _round(float(np.median(rrs_valid[band])))}
+        for band in MODEL_BANDS
+    ]
+    using = [t for t in model.targets if model.satellite_input(t) == "corrected"]
+    yield event("correct", "completed",
+                (f"Removed Sen2Cor's residual offset over water (median B4 Rrs {correction[2]['rrs_l2a']} → "
+                 f"{correction[2]['rrs_corrected']} sr⁻¹); used for {len(using)} of {len(model.targets)} parameters")
+                if model.satellite_correction else "No satellite correction configured; using Sentinel-2 reflectance as delivered",
+                {"reflectance": correction, "targets_using_correction": using})
+
+    # 5. Estimate -----------------------------------------------------------------
+    yield event("estimate", "started", f"Running the water-quality model on {n_valid:,} pixels")
     predictions = model.predict_satellite(rrs_l2a)
     estimates, pixel_maps = {}, {}
     for target, prediction in predictions.items():
@@ -397,6 +504,17 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
         }
     if "chlorophyll_a" in estimates:
         estimates["chlorophyll_a"]["trophic_state"] = _trophic_state(estimates["chlorophyll_a"]["value"])
+    estimate_images = {}
+    for target, values in pixel_maps.items():
+        finite = values[np.isfinite(values)]
+        vmin, vmax = (np.percentile(finite, [2, 98]) if finite.size else (0.1, 1.0))
+        vmin, vmax = max(float(vmin), 1e-3), max(float(vmax), float(vmin) * 1.5)
+        colormap = band_guide.PARAMETERS[target]["colormap"]
+        estimate_images[target] = render.colorize(values, valid, vmin, vmax, colormap, log=True)
+        layers.append({"id": target, "label": estimates[target]["label"], "unit": estimates[target]["unit"],
+                       "colormap": colormap, "colors": render.ramp_hex(colormap), "scale": "log10",
+                       "vmin": _round(vmin), "vmax": _round(vmax)})
+    images.update(estimate_images)
 
     algorithms = {
         "chlorophyll_a_ndci_mishra2012": _stats(wq_algorithms.chlorophyll_ndci_mishra(rrs_valid["B4"], rrs_valid["B5"])),
@@ -421,9 +539,11 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
     }
     yield event("estimate", "completed", "Estimated " + ", ".join(
         f"{estimates[t]['label']} ≈ {estimates[t]['value']} {estimates[t]['unit']}" for t in estimates),
-        {"estimates": {t: {"value": e["value"], "unit": e["unit"]} for t, e in estimates.items()}})
+        {"estimates": {t: {"value": e["value"], "unit": e["unit"], "confidence": e["confidence"]}
+                       for t, e in estimates.items()},
+         "previews": _previews(estimate_images)})
 
-    # 5. Explain: spectrum and band sensitivity ------------------------------------
+    # 6. Explain: spectrum, band sensitivity and index maps --------------------------
     yield event("explain", "started", "Measuring which bands drive each estimate at this location")
     spectrum = []
     for band, meta in ((b["band"], b) for b in band_guide.BANDS):
@@ -433,43 +553,25 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
                          "reflectance_median": _round(p50), "reflectance_p25": _round(p25), "reflectance_p75": _round(p75)})
     rrs_median = {band: float(np.median(rrs_l2a[band])) for band in (*MODEL_BANDS, "B11")}
     sensitivity = band_sensitivity(model, rrs_median)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ndci_map = (rho["B5"] - rho["B4"]) / (rho["B5"] + rho["B4"])
     indices = {
-        "ndci_median": _stats((rho["B5"][valid] - rho["B4"][valid]) / (rho["B5"][valid] + rho["B4"][valid]))["median"],
+        "ndci_median": _stats(ndci_map[valid])["median"],
         "green_blue_ratio_median": _stats(rho["B3"][valid] / rho["B2"][valid])["median"],
         "red_reflectance_median": _stats(rho["B4"][valid])["median"],
     }
-    yield event("explain", "completed", "Band sensitivity computed",
-                {"top_bands": {t: s[0]["band"] for t, s in sensitivity.items()}})
-
-    # 6. Render ---------------------------------------------------------------------
-    yield event("render", "started", "Rendering map layers")
-    images: dict[str, bytes] = {"true_color": render.true_color(rho["B4"], rho["B3"], rho["B2"])}
-    layers = [{"id": "true_color", "label": "True colour (B4, B3, B2)"}]
-    images["pixel_classes"] = render.class_map([
-        (masks.layers["cloud_or_shadow"], (245, 245, 245, 230)),
-        (masks.layers["cloud_adjacent"], (170, 170, 170, 200)),
-        (masks.layers["not_water_like"], (140, 110, 80, 200)),
-        (masks.layers["glint_or_mixed"], (250, 220, 90, 220)),
-        (masks.layers["floating_vegetation_or_scum"], (40, 170, 60, 230)),
-        (masks.layers["valid_open_water"], (40, 120, 220, 200)),
-    ], valid.shape)
-    layers.append({"id": "pixel_classes", "label": "Pixel classification", "legend": {
-        "valid_open_water": "#2878dc", "floating_vegetation_or_scum": "#28aa3c", "glint_or_mixed": "#fadc5a",
-        "not_water_like": "#8c6e50", "cloud_adjacent": "#aaaaaa", "cloud_or_shadow": "#f5f5f5"}})
-    for target, values in pixel_maps.items():
-        finite = values[np.isfinite(values)]
-        vmin, vmax = (np.percentile(finite, [2, 98]) if finite.size else (0.1, 1.0))
-        vmin, vmax = max(float(vmin), 1e-3), max(float(vmax), float(vmin) * 1.5)
-        colormap = band_guide.PARAMETERS[target]["colormap"]
-        images[target] = render.colorize(values, valid, vmin, vmax, colormap, log=True)
-        layers.append({"id": target, "label": estimates[target]["label"], "unit": estimates[target]["unit"],
-                       "colormap": colormap, "scale": "log10", "vmin": _round(vmin), "vmax": _round(vmax)})
+    explain_images = {"ndci": render.colorize(np.where(valid, ndci_map, np.nan), valid, -0.2, 0.3, "algae")}
+    layers.append({"id": "ndci", "label": "NDCI (B5 vs B4 red-edge index)", "colormap": "algae",
+                   "colors": render.ramp_hex("algae"), "scale": "linear", "vmin": -0.2, "vmax": 0.3})
     fdi_map = np.where(valid | masks.floating, fdi, np.nan)
     fdi_lo, fdi_hi = fdi_median, fdi_cut + 0.03
-    images["floating_debris_index"] = render.colorize(fdi_map, valid | masks.floating, fdi_lo, fdi_hi, "debris")
+    explain_images["floating_debris_index"] = render.colorize(fdi_map, valid | masks.floating, fdi_lo, fdi_hi, "debris")
     layers.append({"id": "floating_debris_index", "label": "Floating Debris Index (relative to this water)",
-                   "colormap": "debris", "scale": "linear", "vmin": _round(fdi_lo), "vmax": _round(fdi_hi)})
-    yield event("render", "completed", f"{len(images)} layers rendered")
+                   "colormap": "debris", "colors": render.ramp_hex("debris"), "scale": "linear",
+                   "vmin": _round(fdi_lo), "vmax": _round(fdi_hi)})
+    images.update(explain_images)
+    yield event("explain", "completed", "Band sensitivity and index maps computed",
+                {"top_bands": {t: s[0]["band"] for t, s in sensitivity.items()}, "previews": _previews(explain_images)})
 
     # 7. Result ---------------------------------------------------------------------
     result = {
@@ -490,6 +592,7 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
         "indices": indices,
         "spectrum": spectrum,
         "band_sensitivity": sensitivity,
+        "reflectance_correction": {"bands": correction, "targets_using_correction": using},
         "layers": layers,
         "not_detectable": band_guide.NOT_DETECTABLE,
         "model": {"version": model.metadata.get("model_version"), "feature_version": model.metadata.get("feature_version"),
@@ -500,4 +603,6 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
                       "laboratory testing or a drinking-water safety assessment.",
         "elapsed_ms": int((time.perf_counter() - t0) * 1000),
     }
-    yield event("complete", "completed", "Analysis complete", result, images)
+    done = event("complete", "completed", "Analysis complete", result, images)
+    result["timeline"] = timeline  # includes this final event
+    yield done
