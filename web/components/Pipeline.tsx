@@ -238,10 +238,10 @@ export default function Pipeline({ events, running, layerUrl, replay = false, on
       <div className="mb-7 grid gap-2 sm:grid-cols-[200px_minmax(0,1fr)_auto] sm:items-baseline sm:gap-6">
         <div className="secnum">02 — Fig. 1</div>
         <div>
-          <h2 id="pipeline-title" className="font-serif text-[32px] font-medium leading-tight tracking-tight">How this image became a result</h2>
+          <h2 id="pipeline-title" className="font-serif text-[26px] font-medium leading-tight tracking-tight sm:text-[32px]">How this image became a result</h2>
           <p className="mt-1.5 max-w-[46em] text-[15px] text-ink-2">Each stage runs live on the server. Select a stage to see what it did to the image and why.</p>
         </div>
-        <div className="flex items-center gap-2 whitespace-nowrap font-mono text-xs text-ink-2" aria-live="polite">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-ink-2 sm:whitespace-nowrap" aria-live="polite">
           <i className={`inline-block h-2 w-2 rounded-full ${failed ? "bg-[var(--critical)]" : "bg-accent"} ${running ? "anim-pulse" : ""}`} aria-hidden />
           {statusText}
           {onReplay && !running && doneCount === 7 && (
@@ -357,12 +357,12 @@ export default function Pipeline({ events, running, layerUrl, replay = false, on
         </figure>
         <div>
           <div className="secnum">Stage {String(STAGES.indexOf(selected) + 1).padStart(2, "0")}</div>
-          <h3 className="mb-2.5 mt-0.5 font-serif text-[28px] font-medium leading-tight">{selected.heading}</h3>
+          <h3 className="mb-2.5 mt-0.5 font-serif text-[23px] font-medium leading-tight sm:text-[28px]">{selected.heading}</h3>
           <p className="mb-5 max-w-[38em] text-[15px] leading-relaxed text-ink-2 text-pretty">{selected.body}</p>
           <dl className="grid grid-cols-3 border-t border-hairline">
             {stats(selectedKey, selState.data, selState).map((s) => (
               <div key={s.k} className="border-b border-hairline py-3 pr-3">
-                <dd className="font-serif text-2xl font-medium leading-tight">{s.v}</dd>
+                <dd className="break-words font-serif text-lg font-medium leading-tight sm:text-2xl">{s.v}</dd>
                 <dt className="mt-0.5 text-xs text-muted">{s.k}</dt>
               </div>
             ))}

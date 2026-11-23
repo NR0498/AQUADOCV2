@@ -6,11 +6,15 @@ myenv/
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
+dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
-# Secrets and local config
+# Secrets and local config (web/.env.development is committed on purpose: no secrets)
 .env
 .env.*
 !.env.example
@@ -19,6 +23,7 @@ __pycache__/
 .vercel/
 node_modules/
 .next/
+*.log
 
 # Local databases
 *.sqlite3
@@ -31,14 +36,16 @@ node_modules/
 /data/external/
 /artifacts/tmp/
 
+# Local analysis outputs
+/output/
+
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-# Local analysis outputs
-/output/
-
-.vercel
-.env*
+# Personal notes and deployment runbook (kept locally, not published)
+/DEPLOY.md
+/learning.md
+/study.md

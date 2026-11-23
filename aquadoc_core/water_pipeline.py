@@ -220,16 +220,59 @@ def _main_blocker(counts: dict) -> str:
     return max(removed, key=removed.get)
 
 
-def _no_image_message(blockers: list[str]) -> str:
-    if blockers and blockers.count("floating") * 2 >= len(blockers):
-        return ("On the clear images this water was mostly covered by floating vegetation or dense algal scum, so "
-                "there was too little open water to estimate concentrations. The surface cover itself is the finding.")
-    if blockers and all(b in ("floating", "not_water") for b in blockers):
-        return ("The surface did not look like open water on any image (dense vegetation, scum, very shallow or "
-                "unusually coloured water such as a salt lake), so the model was not applied.")
-    if not blockers:
-        return "No image in this period could be read. Try again, or choose a longer date range."
-    return "No image in this period had enough clear open water (clouds or haze). Try a longer date range."
+def _failure_reason(attempts: list[dict], blockers: list[str], min_valid_pixels: int) -> str:
+    """Why no image was usable: a stable code the dashboard turns into a full explanation."""
+    read = [a for a in attempts if a.get("pixels")]
+    if not read:
+        return "unreadable"
+    if all(a["pixels"]["water_area_pixels"] < min_valid_pixels for a in read):
+        return "too_small"
+    if blockers.count("floating") * 2 >= len(blockers):
+        return "floating_vegetation"
+    if all(b in ("floating", "not_water") for b in blockers):
+        return "not_open_water"
+    if blockers.count("glint") * 2 >= len(blockers):
+        return "glint"
+    return "cloud"
+
+
+FAILURE_MESSAGES = {
+    "unreadable": "No image in this period could be read. Try again, or choose a longer date range.",
+    "too_small": ("The water body is too small (or too narrow) for 20 m Sentinel-2 pixels: after removing the "
+                  "shoreline there were not enough pure water pixels to estimate anything."),
+    "floating_vegetation": ("On the clear images this water was mostly covered by floating vegetation or dense algal "
+                            "scum, so there was too little open water to estimate concentrations. The surface cover "
+                            "itself is the finding."),
+    "not_open_water": ("The surface did not look like open water on any image (dense vegetation, scum, very shallow "
+                       "or unusually coloured water such as a salt lake), so the model was not applied."),
+    "glint": "Sun glint made most of the water too bright on every image tried. Try a longer date range.",
+    "cloud": "No image in this period had enough clear open water (clouds or haze). Try a longer date range.",
+}
+
+
+def _failure_summary(reason: str, attempts: list[dict], request: WaterAnalysisRequest) -> dict:
+    """Per-image breakdown of what covered the water, for the explanation shown under a failed run."""
+    images = []
+    for attempt in attempts:
+        pixels = attempt.get("pixels")
+        entry = {"datetime": attempt.get("datetime"), "platform": attempt.get("platform"),
+                 "tile_cloud_pct": attempt.get("cloud_cover_pct"), "outcome": attempt.get("outcome")}
+        if pixels:
+            area = pixels["water_area_pixels"] or 1
+            entry.update({
+                "water_pixels": pixels["water_area_pixels"],
+                "clear_pct": round(100 * pixels["clear_fraction"], 1),
+                "cloud_pct": round(100 * (pixels["cloud"] + pixels["cloud_shadow"] + pixels["cloud_adjacent"]
+                                          + pixels["snow_ice"]) / area, 1),
+                "vegetation_pct": round(100 * pixels["floating_vegetation_or_scum"] / area, 1),
+                "not_water_pct": round(100 * pixels["not_water_like"] / area, 1),
+                "glint_pct": round(100 * pixels["glint_or_mixed"] / area, 1),
+                "main_blocker": _main_blocker(pixels),
+            })
+        images.append(entry)
+    return {"reason": reason, "images_tried": len(attempts), "images": images,
+            "needed_clear_pct": round(100 * request.min_clear_fraction, 1),
+            "needed_pixels": request.min_valid_pixels}
 
 
 def _trophic_state(chl: float | None) -> str | None:
@@ -311,7 +354,7 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
     try:
         request.validate()
     except ValueError as exc:
-        yield event("validate", "failed", str(exc))
+        yield event("validate", "failed", str(exc), {"failure": {"reason": "invalid_request"}})
         return
     start_date, end_date = request.resolved_dates()
     notes: list[str] = []
@@ -359,11 +402,14 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
         try:
             candidates = services.search_scenes(bbox, start_date, end_date, max_cloud_cover=request.max_cloud_cover)
         except Exception as exc:
-            yield event("search", "failed", f"Satellite catalogue search failed: {exc}")
+            yield event("search", "failed", f"Satellite catalogue search failed: {_short_error(exc)}",
+                        {"failure": {"reason": "catalogue_error"}})
             return
         if not candidates:
             yield event("search", "failed", "No Sentinel-2 scenes with less than "
-                        f"{request.max_cloud_cover:.0f}% tile cloud cover in this period. Try a longer date range.")
+                        f"{request.max_cloud_cover:.0f}% tile cloud cover in this period. Try a longer date range.",
+                        {"failure": {"reason": "no_scenes", "max_tile_cloud_pct": request.max_cloud_cover,
+                                     "start_date": start_date, "end_date": end_date}})
             return
         yield event("search", "completed", f"{len(candidates)} candidate acquisitions found, newest first",
                     {"candidates": [c.summary() for c in candidates[:10]]})
@@ -434,7 +480,9 @@ def run_water_analysis(request: WaterAnalysisRequest, services: Services | None 
             yield event("mask", "rejected", f"Only {counts['clear_fraction']:.0%} of the water is clear on {when} "
                         f"(mostly {BLOCKER_TEXT[blocker]}); trying an earlier image", mask_data)
         if accepted is None:
-            yield event("mask", "failed", _no_image_message(blockers), {"attempts": attempts})
+            reason = _failure_reason(attempts, blockers, request.min_valid_pixels)
+            yield event("mask", "failed", FAILURE_MESSAGES[reason],
+                        {"attempts": attempts, "failure": _failure_summary(reason, attempts, request)})
             return
     finally:
         if executor is not None:

@@ -293,10 +293,29 @@ class PipelineTests(unittest.TestCase):
         request = WaterAnalysisRequest(latitude=17.42, longitude=78.47, end_date="2026-11-20", max_size_m=1000)
         events = list(run_water_analysis(request, self.services([])))
         self.assertEqual((events[-1].stage, events[-1].status), ("search", "failed"))
+        self.assertEqual(events[-1].data["failure"]["reason"], "no_scenes")
         events = list(run_water_analysis(request, self.services(self.candidates()[:1], {"cloudy"})))
         self.assertEqual((events[-1].stage, events[-1].status), ("mask", "failed"))
+        failure = events[-1].data["failure"]
+        self.assertEqual(failure["reason"], "cloud")
+        self.assertEqual(failure["images_tried"], 1)
+        self.assertEqual(failure["images"][0]["main_blocker"], "cloud")
+        self.assertLess(failure["images"][0]["clear_pct"], failure["needed_clear_pct"])
         bad = WaterAnalysisRequest(latitude=95, longitude=0)
-        self.assertEqual(list(run_water_analysis(bad, self.services([])))[0].status, "failed")
+        first = list(run_water_analysis(bad, self.services([])))[0]
+        self.assertEqual((first.status, first.data["failure"]["reason"]), ("failed", "invalid_request"))
+
+    def test_failure_reason_codes(self):
+        from aquadoc_core.water_pipeline import _failure_reason
+
+        def attempt(area):
+            return {"pixels": {"water_area_pixels": area}}
+
+        self.assertEqual(_failure_reason([{"outcome": "read_error"}], [], 20), "unreadable")
+        self.assertEqual(_failure_reason([attempt(5)], ["cloud"], 20), "too_small")
+        self.assertEqual(_failure_reason([attempt(500)] * 2, ["floating", "cloud"], 20), "floating_vegetation")
+        self.assertEqual(_failure_reason([attempt(500)] * 3, ["not_water", "floating", "not_water"], 20), "not_open_water")
+        self.assertEqual(_failure_reason([attempt(500)] * 3, ["cloud", "glint", "cloud"], 20), "cloud")
 
     def test_band_sensitivity_highlights_red_edge_for_chlorophyll(self):
         model = WaterQualityModel.load()

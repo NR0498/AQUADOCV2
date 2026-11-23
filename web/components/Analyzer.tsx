@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FailureExplainer from "@/components/FailureExplainer";
 import NearbyLakes from "@/components/NearbyLakes";
 import LocationChooser, { type DateWindow, type Recent, type Target } from "@/components/LocationChooser";
 import Pipeline from "@/components/Pipeline";
@@ -102,6 +103,8 @@ export default function Analyzer() {
   }, [result]);
 
   const started = running || events.length > 0 || result || error;
+  // A pipeline stage that failed carries a structured reason; explain it instead of showing a one-liner.
+  const failedStage = events.find((e) => e.status === "failed");
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 sm:px-10">
@@ -142,7 +145,9 @@ export default function Analyzer() {
         ) : (
           <Pipeline events={[]} running={false} />
         )}
-        {error && (
+        {failedStage && !running ? (
+          <FailureExplainer event={failedStage} />
+        ) : error && (
           <p role="alert" className="anim-drop mt-6 border border-[var(--critical)] bg-[color-mix(in_oklch,var(--critical)_6%,var(--page))] p-4 text-sm">
             <b className="font-semibold">Analysis stopped. </b>{error}
           </p>
